@@ -7,6 +7,7 @@ import path from "node:path";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest, { params }: { params: { key: string[] } }) {
   const key = decodeURIComponent(params.key.join("/"));
@@ -25,9 +26,9 @@ export async function GET(req: NextRequest, { params }: { params: { key: string[
     const body = res.Body as any; // stream
     const headers = new Headers();
     headers.set("Content-Type", "audio/mpeg");
+    headers.set("Accept-Ranges", "bytes");
     if (res.ContentLength != null) headers.set("Content-Length", String(res.ContentLength));
     if (res.ContentRange) headers.set("Content-Range", res.ContentRange);
-    if (range) headers.set("Accept-Ranges", "bytes");
     return new Response(body as any, { status: range ? 206 : 200, headers });
   }
 
@@ -46,7 +47,6 @@ export async function GET(req: NextRequest, { params }: { params: { key: string[
       const start = m ? parseInt(m[1], 10) : 0;
       const end = m && m[2] ? parseInt(m[2], 10) : total - 1;
       if (start >= total || end >= total) {
-        // Respond with 200 and full content for browsers that may send invalid initial ranges
         headers.set("Content-Length", String(total));
         const stream = fs.createReadStream(filePath);
         return new Response(stream as any, { status: 200, headers });
