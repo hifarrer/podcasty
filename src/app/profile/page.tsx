@@ -13,6 +13,24 @@ export default function ProfilePage() {
   const [data, setData] = useState<UserResp | null>(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    if (sessionStatus === "authenticated" && session) {
+      (async () => {
+        try {
+          const res = await fetch("/api/user", { credentials: "include", cache: "no-store" });
+          if (res.ok) {
+            const d = await res.json();
+            setData(d);
+          }
+        } finally {
+          setLoading(false);
+        }
+      })();
+    } else if (sessionStatus === "unauthenticated") {
+      setLoading(false);
+    }
+  }, [sessionStatus, session]);
+
   // Check if user is authenticated
   if (sessionStatus === "loading") {
     return (
@@ -45,20 +63,6 @@ export default function ProfilePage() {
       </div>
     );
   }
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/user", { credentials: "include", cache: "no-store" });
-        if (res.ok) {
-          const d = await res.json();
-          setData(d);
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
 
   if (loading) {
     return (
