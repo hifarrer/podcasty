@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import RSS from "rss";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: NextRequest) {
   // TODO: replace with real auth: we accept token via query for private feed
   const { searchParams } = new URL(req.url);
