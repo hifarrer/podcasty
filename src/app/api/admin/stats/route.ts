@@ -8,6 +8,11 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 export async function GET() {
+  // Prevent execution during build time
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
+  
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const me = await prisma.user.findUnique({ where: { id: session.user.id }, select: { isAdmin: true } });

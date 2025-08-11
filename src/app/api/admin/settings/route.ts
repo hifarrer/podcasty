@@ -15,6 +15,11 @@ async function requireAdmin() {
 }
 
 export async function GET() {
+  // Prevent execution during build time
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
+  
   try {
     await requireAdmin();
     const settings = await prisma.siteSettings.upsert({
@@ -31,6 +36,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Prevent execution during build time
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
+  
   try {
     await requireAdmin();
     const body = await req.json();

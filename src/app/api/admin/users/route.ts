@@ -15,17 +15,28 @@ async function requireAdmin() {
 }
 
 export async function GET() {
+  // Prevent execution during build time
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
+  
   try {
     await requireAdmin();
     const users = await prisma.user.findMany({ select: { id: true, email: true, name: true, plan: true, isAdmin: true, createdAt: true } });
     return NextResponse.json({ users });
   } catch (e: any) {
+    console.error("Admin users GET error:", e);
     const status = e.message === "Forbidden" ? 403 : 401;
     return NextResponse.json({ error: e.message }, { status });
   }
 }
 
 export async function POST(req: NextRequest) {
+  // Prevent execution during build time
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
+  
   try {
     await requireAdmin();
     const body = await req.json();
@@ -37,6 +48,7 @@ export async function POST(req: NextRequest) {
     await prisma.user.update({ where: { id: userId }, data });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
+    console.error("Admin users POST error:", e);
     const status = e.message === "Forbidden" ? 403 : 401;
     return NextResponse.json({ error: e.message }, { status });
   }
