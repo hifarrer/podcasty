@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { Mic, Youtube, Globe, FileText } from "lucide-react";
 
 type SourceType = "YOUTUBE" | "WEB" | "PDF" | "TXT" | "PROMPT";
 
@@ -173,16 +174,67 @@ export default function CreateEpisodePage() {
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-[#cccccc] mb-3">Source Type</label>
-                  <select
-                    className="select-field w-full"
-                    value={sourceType}
-                    onChange={(e) => setSourceType(e.target.value as SourceType)}
-                  >
-                    <option value="PROMPT">Text Prompt</option>
-                    <option value="YOUTUBE">YouTube URL</option>
-                    <option value="WEB">Web URL</option>
-                    <option value="TXT">TXT Upload</option>
-                  </select>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSourceType("PROMPT")}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 ${
+                        sourceType === "PROMPT"
+                          ? "border-[#00c8c8] bg-[#00c8c8]/10"
+                          : "border-[#333333] hover:border-[#00c8c8]/50 hover:bg-[#00c8c8]/5"
+                      }`}
+                    >
+                      <Mic className={`w-6 h-6 ${sourceType === "PROMPT" ? "text-[#00c8c8]" : "text-[#cccccc]"}`} />
+                      <span className={`text-sm font-medium ${sourceType === "PROMPT" ? "text-[#00c8c8]" : "text-[#cccccc]"}`}>
+                        Text Prompt
+                      </span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSourceType("YOUTUBE")}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 ${
+                        sourceType === "YOUTUBE"
+                          ? "border-[#00c8c8] bg-[#00c8c8]/10"
+                          : "border-[#333333] hover:border-[#00c8c8]/50 hover:bg-[#00c8c8]/5"
+                      }`}
+                    >
+                      <Youtube className={`w-6 h-6 ${sourceType === "YOUTUBE" ? "text-[#00c8c8]" : "text-[#cccccc]"}`} />
+                      <span className={`text-sm font-medium ${sourceType === "YOUTUBE" ? "text-[#00c8c8]" : "text-[#cccccc]"}`}>
+                        YouTube
+                      </span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSourceType("WEB")}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 ${
+                        sourceType === "WEB"
+                          ? "border-[#00c8c8] bg-[#00c8c8]/10"
+                          : "border-[#333333] hover:border-[#00c8c8]/50 hover:bg-[#00c8c8]/5"
+                      }`}
+                    >
+                      <Globe className={`w-6 h-6 ${sourceType === "WEB" ? "text-[#00c8c8]" : "text-[#cccccc]"}`} />
+                      <span className={`text-sm font-medium ${sourceType === "WEB" ? "text-[#00c8c8]" : "text-[#cccccc]"}`}>
+                        Web
+                      </span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSourceType("TXT")}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 ${
+                        sourceType === "TXT"
+                          ? "border-[#00c8c8] bg-[#00c8c8]/10"
+                          : "border-[#333333] hover:border-[#00c8c8]/50 hover:bg-[#00c8c8]/5"
+                      }`}
+                    >
+                      <FileText className={`w-6 h-6 ${sourceType === "TXT" ? "text-[#00c8c8]" : "text-[#cccccc]"}`} />
+                      <span className={`text-sm font-medium ${sourceType === "TXT" ? "text-[#00c8c8]" : "text-[#cccccc]"}`}>
+                        TXT File
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 {(sourceType === "YOUTUBE" || sourceType === "WEB") && (
