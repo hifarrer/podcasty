@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
+  // Make DATABASE_URL optional at build time to avoid throwing during Next/Vercel static analysis.
+  // Runtime code that requires the database should ensure this is set.
+  DATABASE_URL: z.string().url().optional(),
   AUTH_SECRET: z.string().min(10).optional(),
   NEXTAUTH_SECRET: z.string().min(10).optional(),
   NEXTAUTH_URL: z.string().url().optional(),
