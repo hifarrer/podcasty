@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -7,9 +6,15 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
+async function getPrisma() {
+  const { prisma } = await import("@/lib/prisma");
+  return prisma;
+}
+
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) throw new Error("Unauthorized");
+  const prisma = await getPrisma();
   const me = await prisma.user.findUnique({ where: { id: session.user.id }, select: { isAdmin: true } });
   if (!me?.isAdmin) throw new Error("Forbidden");
 }
@@ -22,6 +27,7 @@ export async function GET() {
   
   try {
     await requireAdmin();
+    const prisma = await getPrisma();
     const plans = await prisma.planConfig.findMany({});
     return NextResponse.json({ plans });
   } catch (e: any) {
@@ -39,6 +45,7 @@ export async function POST(req: NextRequest) {
   
   try {
     await requireAdmin();
+    const prisma = await getPrisma();
     const body = await req.json();
     const { plan, priceCents, monthlyLimit, features } = body || {};
     if (!plan || !["FREE", "BASIC", "PREMIUM"].includes(plan)) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });

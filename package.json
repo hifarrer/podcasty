@@ -10,6 +10,7 @@
     "worker": "tsx src/workers/episodeWorker.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --skip-seed",
+    "postinstall": "prisma generate",
     "test": "vitest"
   },
   "dependencies": {

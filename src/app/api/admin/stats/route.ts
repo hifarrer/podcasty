@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
+
+async function getPrisma() {
+  const { prisma } = await import("@/lib/prisma");
+  return prisma;
+}
 
 export async function GET() {
   // Prevent execution during build time
@@ -15,6 +19,7 @@ export async function GET() {
   
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const prisma = await getPrisma();
   const me = await prisma.user.findUnique({ where: { id: session.user.id }, select: { isAdmin: true } });
   if (!me?.isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
