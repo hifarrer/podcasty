@@ -1,6 +1,7 @@
 "use client";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
+import { Mic } from "lucide-react";
 
 export default function Navigation() {
   const { data: session, status } = useSession();
@@ -11,7 +12,7 @@ export default function Navigation() {
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2 group">
             <div className="w-8 h-8 bg-gradient-to-r from-[#00c8c8] to-[#007bff] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
+              <Mic className="w-4 h-4 text-white" />
             </div>
             <span className="text-white font-bold text-xl group-hover:opacity-80 transition-opacity">
               Podcasty
