@@ -6,13 +6,20 @@ import Link from "next/link";
 import { Mic, Youtube, Globe, FileText } from "lucide-react";
 
 type SourceType = "YOUTUBE" | "WEB" | "PDF" | "TXT" | "PROMPT";
+type Mode = "SUMMARY" | "READTHROUGH" | "DISCUSSION";
+type Episode = {
+  id: string;
+  title?: string | null;
+  audioUrl?: string | null;
+  showNotesMd?: string | null;
+};
 
 export default function CreateEpisodePage() {
   const [sourceType, setSourceType] = useState<SourceType>("PROMPT");
   const [sourceUrl, setSourceUrl] = useState("");
   const [uploadKey, setUploadKey] = useState("");
   const [promptText, setPromptText] = useState("");
-  const [mode, setMode] = useState<"SUMMARY" | "READTHROUGH" | "DISCUSSION">("SUMMARY");
+  const [mode, setMode] = useState<Mode>("SUMMARY");
   const [targetMinutes, setTargetMinutes] = useState(2);
   const [includeIntro, setIncludeIntro] = useState(true);
   const [includeOutro, setIncludeOutro] = useState(true);
@@ -23,10 +30,58 @@ export default function CreateEpisodePage() {
   const [loading, setLoading] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [episode, setEpisode] = useState<any | null>(null);
+  const [episode, setEpisode] = useState<Episode | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
-  const [events, setEvents] = useState<{ type: string; message: string; createdAt: string }[]>([]);
   const { data: session, status: sessionStatus } = useSession();
+
+  // Effects must be declared before any early returns
+  useEffect(() => {
+    // Load voices on mount
+    (async () => {
+      try {
+        const r = await fetch("/api/voices", { 
+          cache: "no-store",
+          credentials: "include"
+        });
+        const d = await r.json();
+        if (Array.isArray(d.voices)) {
+          setVoices(d.voices);
+          if (!voiceId && d.voices.length > 0) setVoiceId(d.voices[0].voice_id);
+          if (!voiceIdB && d.voices.length > 1) setVoiceIdB(d.voices[1].voice_id);
+        }
+      } catch {}
+    })();
+    if (!createdId) return;
+    // Clear any previous poller
+    if (pollRef.current) clearInterval(pollRef.current);
+    const poll = async () => {
+      try {
+        console.log("Polling status for", createdId, new Date().toISOString());
+        const res = await fetch(`/api/episodes/${createdId}/status?ts=${Date.now()}`, { 
+          cache: "no-store",
+          credentials: "include"
+        });
+        const data = await res.json();
+        console.log("Status response", data);
+        if (!res.ok) throw new Error(data.error || "Status error");
+        setStatus(data.status);
+        setEpisode(data.episode);
+        if (data.status === "PUBLISHED" || data.status === "FAILED") {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      } catch (e) {
+        // keep polling on transient failures
+      }
+    };
+    // kick immediately, then every 3s
+    poll();
+    pollRef.current = setInterval(poll, 3000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = null;
+    };
+  }, [createdId, voiceId, voiceIdB]);
 
   // Check if user is authenticated
   if (sessionStatus === "loading") {
@@ -115,67 +170,15 @@ export default function CreateEpisodePage() {
       if (!res.ok) throw new Error(data.error || "Failed");
       setCreatedId(data.id);
       setStatus("CREATED");
-    } catch (e: any) {
-      alert(e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed";
+      alert(message);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    // Load voices on mount
-    (async () => {
-      try {
-        const r = await fetch("/api/voices", { 
-          cache: "no-store",
-          credentials: "include"
-        });
-        const d = await r.json();
-        if (Array.isArray(d.voices)) {
-          setVoices(d.voices);
-          if (!voiceId && d.voices.length > 0) setVoiceId(d.voices[0].voice_id);
-          if (!voiceIdB && d.voices.length > 1) setVoiceIdB(d.voices[1].voice_id);
-        }
-      } catch {}
-    })();
-    if (!createdId) return;
-    // Clear any previous poller
-    if (pollRef.current) clearInterval(pollRef.current);
-    const poll = async () => {
-      try {
-        console.log("Polling status for", createdId, new Date().toISOString());
-        const res = await fetch(`/api/episodes/${createdId}/status?ts=${Date.now()}`, { 
-          cache: "no-store",
-          credentials: "include"
-        });
-        const data = await res.json();
-        console.log("Status response", data);
-        if (!res.ok) throw new Error(data.error || "Status error");
-        setStatus(data.status);
-        setEpisode(data.episode);
-        // fetch events for detailed steps
-        const er = await fetch(`/api/episodes/${createdId}/events?ts=${Date.now()}`, { 
-          cache: "no-store",
-          credentials: "include"
-        });
-        const ev = await er.json();
-        if (Array.isArray(ev.events)) setEvents(ev.events);
-        if (data.status === "PUBLISHED" || data.status === "FAILED") {
-          if (pollRef.current) clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-      } catch (e) {
-        // keep polling on transient failures
-      }
-    };
-    // kick immediately, then every 3s
-    poll();
-    pollRef.current = setInterval(poll, 3000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = null;
-    };
-  }, [createdId]);
+  
 
   return (
     <div className="min-h-screen bg-[#1a1a1a]">
@@ -366,7 +369,7 @@ export default function CreateEpisodePage() {
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-[#cccccc] mb-3">Mode</label>
-                  <select className="select-field w-full" value={mode} onChange={(e) => setMode(e.target.value as any)}>
+                  <select className="select-field w-full" value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
                     <option value="SUMMARY">Summary</option>
                     <option value="READTHROUGH">Read-through</option>
                     <option value="DISCUSSION">Discussion</option>

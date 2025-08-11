@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import RSS from "rss";
 import { prisma } from "@/lib/prisma";
+import { EpisodeStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!feed) return new Response("Feed not found", { status: 404 });
 
   const episodes = await prisma.episode.findMany({
-    where: { userId: feed.userId, status: "PUBLISHED" as any },
+    where: { userId: feed.userId, status: EpisodeStatus.PUBLISHED },
     orderBy: { createdAt: "desc" },
     take: 100,
   });

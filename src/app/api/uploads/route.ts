@@ -27,8 +27,9 @@ export async function POST(req: NextRequest) {
   }
     const { key, url } = await uploadBuffer({ buffer: buf, contentType: "text/plain", ext: ".txt", prefix: "uploads" });
     return NextResponse.json({ key, url }, { status: 201 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Upload failed" }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Upload failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

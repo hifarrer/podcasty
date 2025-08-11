@@ -21,7 +21,7 @@ export async function GET() {
     const remaining = Math.max(0, limit - episodesThisMonth);
 
     return NextResponse.json({ user, usage: { limit, used: episodesThisMonth, remaining } });
-  } catch (e: any) {
+  } catch (_e: unknown) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 }
@@ -37,14 +37,14 @@ export async function POST(req: Request) {
     } else if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
       const form = await req.formData();
       const p = form.get("plan");
-      plan = (typeof p === "string" ? p : undefined) as any;
+      plan = (typeof p === "string" ? (p as "FREE" | "BASIC" | "PREMIUM") : undefined);
     }
     if (!plan || !["FREE", "BASIC", "PREMIUM"].includes(plan)) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
     await prisma.user.update({ where: { id: userId }, data: { plan } });
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
+  } catch (_e: unknown) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 }

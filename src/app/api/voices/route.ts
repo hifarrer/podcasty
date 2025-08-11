@@ -14,8 +14,8 @@ export async function GET() {
     const text = await res.text();
     return NextResponse.json({ error: text }, { status: 500 });
   }
-  const data = await res.json();
-  const voices = (data.voices || []).map((v: any) => ({
+  const data = (await res.json()) as { voices?: Array<{ voice_id: string; name: string; preview_url?: string | null }> };
+  const voices = (data.voices || []).map((v) => ({
     voice_id: v.voice_id,
     name: v.name,
     preview_url: v.preview_url || null,
