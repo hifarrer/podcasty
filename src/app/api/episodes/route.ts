@@ -5,6 +5,9 @@ import { processEpisode } from "@/workers/processEpisode";
 import { getCurrentUserId, getCurrentUserIdOrDemo } from "@/lib/server-auth";
 import { z } from "zod";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const CreateEpisodeSchema = z.object({
   sourceType: z.enum(["YOUTUBE", "WEB", "PDF", "TXT", "PROMPT"]),
   sourceUrl: z.string().url().optional(),
