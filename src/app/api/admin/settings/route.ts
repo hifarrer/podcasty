@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const runtime = "nodejs";
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
@@ -23,6 +24,7 @@ export async function GET() {
     });
     return NextResponse.json({ settings });
   } catch (e: any) {
+    console.error("Admin settings GET error:", e);
     const status = e.message === "Forbidden" ? 403 : 401;
     return NextResponse.json({ error: e.message }, { status });
   }
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ settings: updated });
   } catch (e: any) {
+    console.error("Admin settings POST error:", e);
     const status = e.message === "Forbidden" ? 403 : 401;
     return NextResponse.json({ error: e.message }, { status });
   }
