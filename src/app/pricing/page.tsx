@@ -1,9 +1,69 @@
+"use client";
+import { useEffect, useState } from "react";
+
+interface Plan {
+  plan: string;
+  priceCents: number;
+  monthlyLimit: number;
+  features?: string | null;
+}
+
 export default function PricingPage() {
-  const plans = [
-    { name: "Free", price: "$0", note: "Up to 3 podcasts / month", key: "FREE" },
-    { name: "Basic", price: "$19", note: "Up to 15 podcasts / month", key: "BASIC" },
-    { name: "Premium", price: "$30", note: "Up to 60 podcasts / month", key: "PREMIUM" },
-  ];
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchPlans() {
+      try {
+        const response = await fetch('/api/plans');
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch plans');
+        }
+        
+        setPlans(data.plans || []);
+      } catch (err: any) {
+        setError(err.message);
+        // Fallback to default plans if API fails
+        setPlans([
+          { plan: "FREE", priceCents: 0, monthlyLimit: 3 },
+          { plan: "BASIC", priceCents: 1900, monthlyLimit: 15 },
+          { plan: "PREMIUM", priceCents: 3000, monthlyLimit: 60 },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPlans();
+  }, []);
+
+  const formatPrice = (priceCents: number) => {
+    if (priceCents === 0) return "$0";
+    return `$${(priceCents / 100).toFixed(0)}`;
+  };
+
+  const getPlanName = (planKey: string) => {
+    switch (planKey) {
+      case "FREE": return "Free";
+      case "BASIC": return "Basic";
+      case "PREMIUM": return "Premium";
+      default: return planKey;
+    }
+  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00c8c8] mx-auto mb-4"></div>
+          <p className="text-[#cccccc]">Loading pricing plans...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#1a1a1a]">
       <div className="max-w-5xl mx-auto px-6 py-16">
@@ -11,15 +71,31 @@ export default function PricingPage() {
           <h1 className="text-4xl lg:text-5xl font-bold gradient-text mb-3">Pricing</h1>
           <p className="text-[#cccccc]">Choose the plan that fits your podcasting needs</p>
         </div>
+        
+        {error && (
+          <div className="text-center mb-8">
+            <div className="text-[#ef4444] bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-lg p-4 inline-block">
+              <p className="text-sm">Note: Using default pricing. {error}</p>
+            </div>
+          </div>
+        )}
+        
         <div className="grid md:grid-cols-3 gap-6">
-          {plans.map((p) => (
-            <div key={p.key} className="card flex flex-col items-center text-center">
-              <div className="text-white text-2xl font-semibold mb-2">{p.name}</div>
-              <div className="text-4xl font-extrabold text-white mb-1">{p.price}<span className="text-base font-medium text-[#cccccc]">/mo</span></div>
-              <div className="text-[#cccccc] mb-6">{p.note}</div>
+          {plans.map((plan) => (
+            <div key={plan.plan} className="card flex flex-col items-center text-center">
+              <div className="text-white text-2xl font-semibold mb-2">{getPlanName(plan.plan)}</div>
+              <div className="text-4xl font-extrabold text-white mb-1">
+                {formatPrice(plan.priceCents)}
+                <span className="text-base font-medium text-[#cccccc]">/mo</span>
+              </div>
+              <div className="text-[#cccccc] mb-6">
+                Up to {plan.monthlyLimit} podcasts / month
+              </div>
               <form action="/api/user" method="post" className="w-full">
-                <input type="hidden" name="plan" value={p.key} />
-                <button className="btn-primary w-full py-3">Choose {p.name}</button>
+                <input type="hidden" name="plan" value={plan.plan} />
+                <button className="btn-primary w-full py-3">
+                  Choose {getPlanName(plan.plan)}
+                </button>
               </form>
             </div>
           ))}

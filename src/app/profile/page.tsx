@@ -9,12 +9,44 @@ type UserResp = {
 };
 
 export default function ProfilePage() {
-  const { status } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [data, setData] = useState<UserResp | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Check if user is authenticated
+  if (sessionStatus === "loading") {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00c8c8] mx-auto mb-4"></div>
+          <p className="text-[#cccccc]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionStatus === "unauthenticated" || !session) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-6">
+          <h1 className="text-3xl font-bold text-white mb-4">Authentication Required</h1>
+          <p className="text-[#cccccc] mb-8">
+            You need to be logged in to view your profile. Please sign in or create an account to continue.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/login" className="btn-primary px-6 py-3">
+              Sign In
+            </Link>
+            <Link href="/register" className="btn-secondary px-6 py-3">
+              Create Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
-    if (status !== "authenticated") return;
     (async () => {
       try {
         const res = await fetch("/api/user", { credentials: "include", cache: "no-store" });
@@ -26,19 +58,14 @@ export default function ProfilePage() {
         setLoading(false);
       }
     })();
-  }, [status]);
+  }, []);
 
-  if (status === "loading" || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center"><div className="text-[#cccccc]">Loading...</div></div>
-    );
-  }
-  if (status !== "authenticated") {
-    return (
-      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center px-6">
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-3xl font-bold gradient-text mb-3">Sign In Required</h1>
-          <div className="flex gap-3 justify-center"><Link className="btn-primary" href="/login">Sign In</Link><Link className="btn-secondary" href="/register">Create Account</Link></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00c8c8] mx-auto mb-4"></div>
+          <p className="text-[#cccccc]">Loading profile...</p>
         </div>
       </div>
     );
