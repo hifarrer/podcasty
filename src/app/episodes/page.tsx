@@ -250,7 +250,7 @@ export default function EpisodesPage() {
                 
                 {ep.audioUrl && (
                   <div className="bg-[#2a2a2a] rounded-lg p-4">
-                    <audio controls className="w-full" preload="none">
+                    <audio controls className="w-full" preload="metadata">
                       <source src={ep.audioUrl} type="audio/mpeg" />
                     </audio>
                   </div>
