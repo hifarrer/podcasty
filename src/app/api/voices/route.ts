@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   if (!env.ELEVENLABS_API_KEY) return NextResponse.json({ voices: [] });
   const res = await fetch("https://api.elevenlabs.io/v1/voices", {
