@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function POST(req: NextRequest) {
   try {
     const { name, email, password } = await req.json();
