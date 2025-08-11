@@ -1,0 +1,194 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum SourceType {
+  YOUTUBE
+  WEB
+  PDF
+  TXT
+  PROMPT
+}
+
+enum ModeType {
+  SUMMARY
+  READTHROUGH
+  DISCUSSION
+}
+
+enum EpisodeStatus {
+  CREATED
+  INGESTING
+  SCRIPTING
+  SYNTHESIZING
+  AUDIO_POST
+  PUBLISHED
+  FAILED
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PREMIUM
+}
+
+// NextAuth models (compatible with Prisma Adapter)
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String?  @unique
+  password  String?
+  emailVerified DateTime?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+  episodes  Episode[]
+  feed      Feed?
+  eventLogs EventLog[]
+
+  plan      PlanType  @default(FREE)
+  isAdmin   Boolean   @default(false)
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  oauth_token_secret String?
+  oauth_token        String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Core domain models
+model Episode {
+  id              String        @id @default(cuid())
+  userId          String
+  sourceType      SourceType
+  sourceUrl       String?
+  uploadKey       String? // key/path in object storage when uploaded
+  mode            ModeType      @default(SUMMARY)
+  language        String        @default("en")
+  style           String        @default("conversational")
+  voice           String        @default("default")
+  speakers        Int           @default(1)
+  voicesJson      Json?
+  speakerNamesJson Json?
+  targetMinutes   Int?          // desired length for summary mode
+  includeIntro    Boolean       @default(true)
+  includeOutro    Boolean       @default(true)
+  includeMusic    Boolean       @default(false)
+  chaptersEnabled Boolean       @default(true)
+  promptText      String?
+  status          EpisodeStatus @default(CREATED)
+  title           String?
+  showNotesMd     String?       @db.Text
+  ssml            String?       @db.Text
+  estimatedWpm    Int?
+  chaptersJson    Json?
+  audioUrl        String?
+  audioBytes      BigInt?       @db.BigInt
+  durationSec     Int?
+  coverUrl        String?
+  jobId           String?
+  errorMessage    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventLogs EventLog[]
+
+  @@index([userId, createdAt])
+}
+
+model Feed {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  title        String   @default("Podcasty Feed")
+  description  String   @default("Episodes generated with Podcasty")
+  imageUrl     String?
+  privateToken String   @unique // used to construct private RSS URL
+  explicit     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EventLog {
+  id        String   @id @default(cuid())
+  episodeId String
+  userId    String
+  type      String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([episodeId, createdAt])
+}
+
+/// Plan configuration editable by admins
+model PlanConfig {
+  id           String    @id @default(cuid())
+  plan         PlanType  @unique
+  priceCents   Int       @default(0)
+  monthlyLimit Int       @default(0)
+  features     Json?
+  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime  @default(now())
+}
+
+/// Global site settings (singleton row)
+model SiteSettings {
+  id              String   @id @default("main")
+  siteName        String   @default("Podcasty")
+  maintenanceMode Boolean  @default(false)
+  settingsJson    Json?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+}
