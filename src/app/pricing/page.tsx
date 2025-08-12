@@ -5,11 +5,14 @@ interface Plan {
   plan: string;
   priceCents: number;
   monthlyLimit: number;
+  yearlyPriceCents?: number;
+  yearlyLimit?: number;
   features?: string | null;
 }
 
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,9 +31,9 @@ export default function PricingPage() {
         setError(err.message);
         // Fallback to default plans if API fails
         setPlans([
-          { plan: "FREE", priceCents: 0, monthlyLimit: 3 },
-          { plan: "BASIC", priceCents: 1900, monthlyLimit: 15 },
-          { plan: "PREMIUM", priceCents: 3000, monthlyLimit: 60 },
+          { plan: "FREE", priceCents: 0, monthlyLimit: 3, yearlyPriceCents: 0, yearlyLimit: 36 },
+          { plan: "BASIC", priceCents: 1900, monthlyLimit: 15, yearlyPriceCents: 19000, yearlyLimit: 180 },
+          { plan: "PREMIUM", priceCents: 3000, monthlyLimit: 60, yearlyPriceCents: 30000, yearlyLimit: 720 },
         ]);
       } finally {
         setLoading(false);
@@ -69,7 +72,11 @@ export default function PricingPage() {
       <div className="max-w-5xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
           <h1 className="text-4xl lg:text-5xl font-bold gradient-text mb-3">Pricing</h1>
-          <p className="text-[#cccccc]">Choose the plan that fits your podcasting needs</p>
+          <p className="text-[#cccccc] mb-6">Choose the plan that fits your podcasting needs</p>
+          <div className="inline-flex items-center gap-2 bg-[#0f0f0f] border border-[#333] rounded-lg p-1">
+            <button onClick={() => setBilling("monthly")} className={`px-4 py-2 rounded-md ${billing === "monthly" ? "bg-[#1a1a1a] text-white" : "text-[#cccccc]"}`}>Monthly</button>
+            <button onClick={() => setBilling("yearly")} className={`px-4 py-2 rounded-md ${billing === "yearly" ? "bg-[#1a1a1a] text-white" : "text-[#cccccc]"}`}>Yearly</button>
+          </div>
         </div>
         
         {error && (
@@ -81,15 +88,22 @@ export default function PricingPage() {
         )}
         
         <div className="grid md:grid-cols-3 gap-6">
-          {plans.map((plan) => (
+          {plans.map((plan) => {
+            const price = billing === "monthly" ? (plan.priceCents || 0) : (plan.yearlyPriceCents || 0);
+            const limit = billing === "monthly" ? (plan.monthlyLimit || 0) : (plan.yearlyLimit || plan.monthlyLimit * 12 || 0);
+            return (
             <div key={plan.plan} className="card flex flex-col items-center text-center">
               <div className="text-white text-2xl font-semibold mb-2">{getPlanName(plan.plan)}</div>
               <div className="text-4xl font-extrabold text-white mb-1">
-                {formatPrice(plan.priceCents)}
-                <span className="text-base font-medium text-[#cccccc]">/mo</span>
+                {formatPrice(price)}
+                <span className="text-base font-medium text-[#cccccc]">/{billing === "monthly" ? "mo" : "yr"}</span>
               </div>
               <div className="text-[#cccccc] mb-6">
-                Up to {plan.monthlyLimit} podcasts / month
+                {billing === "monthly" ? (
+                  <>Up to {limit} podcasts / month</>
+                ) : (
+                  <>Up to {limit} podcasts / year</>
+                )}
               </div>
               <form action="/api/user" method="post" className="w-full">
                 <input type="hidden" name="plan" value={plan.plan} />
@@ -98,7 +112,7 @@ export default function PricingPage() {
                 </button>
               </form>
             </div>
-          ))}
+          );})}
         </div>
       </div>
     </div>

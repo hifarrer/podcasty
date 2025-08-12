@@ -46,7 +46,7 @@ export default function AdminPlans() {
   if (!session?.user?.isAdmin) return <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center text-[#cccccc]">Forbidden</div>;
 
   const all = ["FREE", "BASIC", "PREMIUM"];
-  const merged = all.map((k) => plans.find((p) => p.plan === k) || { plan: k, priceCents: 0, monthlyLimit: 0, features: [] });
+  const merged = all.map((k) => plans.find((p) => p.plan === k) || { plan: k, priceCents: 0, monthlyLimit: 0, yearlyPriceCents: 0, yearlyLimit: 0, features: [] });
 
   return (
     <div className="min-h-screen bg-[#1a1a1a]">
@@ -63,11 +63,19 @@ export default function AdminPlans() {
             <div className="grid md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-sm text-[#cccccc] mb-1">Price (USD/month)</label>
-                <input className="input-field w-full" type="number" disabled={saving} defaultValue={(p.priceCents || 0) / 100} onBlur={(e) => savePlan({ plan: p.plan, priceCents: Math.round(Number(e.target.value) * 100), monthlyLimit: p.monthlyLimit, features: p.features })} />
+                <input className="input-field w-full" type="number" disabled={saving} defaultValue={(p.priceCents || 0) / 100} onBlur={(e) => savePlan({ plan: p.plan, priceCents: Math.round(Number(e.target.value) * 100), monthlyLimit: p.monthlyLimit, yearlyPriceCents: p.yearlyPriceCents, yearlyLimit: p.yearlyLimit, features: p.features })} />
               </div>
               <div>
                 <label className="block text-sm text-[#cccccc] mb-1">Monthly limit</label>
-                <input className="input-field w-full" type="number" disabled={saving} defaultValue={p.monthlyLimit || 0} onBlur={(e) => savePlan({ plan: p.plan, priceCents: p.priceCents, monthlyLimit: Number(e.target.value), features: p.features })} />
+                <input className="input-field w-full" type="number" disabled={saving} defaultValue={p.monthlyLimit || 0} onBlur={(e) => savePlan({ plan: p.plan, priceCents: p.priceCents, monthlyLimit: Number(e.target.value), yearlyPriceCents: p.yearlyPriceCents, yearlyLimit: p.yearlyLimit, features: p.features })} />
+              </div>
+              <div>
+                <label className="block text-sm text-[#cccccc] mb-1">Yearly price (USD/year)</label>
+                <input className="input-field w-full" type="number" disabled={saving} defaultValue={(p.yearlyPriceCents || 0) / 100} onBlur={(e) => savePlan({ plan: p.plan, priceCents: p.priceCents, monthlyLimit: p.monthlyLimit, yearlyPriceCents: Math.round(Number(e.target.value) * 100), yearlyLimit: p.yearlyLimit, features: p.features })} />
+              </div>
+              <div>
+                <label className="block text-sm text-[#cccccc] mb-1">Yearly limit</label>
+                <input className="input-field w-full" type="number" disabled={saving} defaultValue={p.yearlyLimit || 0} onBlur={(e) => savePlan({ plan: p.plan, priceCents: p.priceCents, monthlyLimit: p.monthlyLimit, yearlyPriceCents: p.yearlyPriceCents, yearlyLimit: Number(e.target.value), features: p.features })} />
               </div>
             </div>
           </div>

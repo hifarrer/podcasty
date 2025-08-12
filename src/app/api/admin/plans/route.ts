@@ -47,12 +47,25 @@ export async function POST(req: NextRequest) {
     await requireAdmin();
     const prisma = await getPrisma();
     const body = await req.json();
-    const { plan, priceCents, monthlyLimit, features } = body || {};
+    const { plan, priceCents, monthlyLimit, yearlyPriceCents, yearlyLimit, features } = body || {};
     if (!plan || !["FREE", "BASIC", "PREMIUM"].includes(plan)) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     const updated = await prisma.planConfig.upsert({
       where: { plan },
-      update: { priceCents: Number(priceCents) || 0, monthlyLimit: Number(monthlyLimit) || 0, features: features ?? undefined },
-      create: { plan, priceCents: Number(priceCents) || 0, monthlyLimit: Number(monthlyLimit) || 0, features: features ?? undefined },
+      update: {
+        priceCents: Number(priceCents) || 0,
+        monthlyLimit: Number(monthlyLimit) || 0,
+        yearlyPriceCents: Number(yearlyPriceCents) || 0,
+        yearlyLimit: Number(yearlyLimit) || 0,
+        features: features ?? undefined
+      },
+      create: {
+        plan,
+        priceCents: Number(priceCents) || 0,
+        monthlyLimit: Number(monthlyLimit) || 0,
+        yearlyPriceCents: Number(yearlyPriceCents) || 0,
+        yearlyLimit: Number(yearlyLimit) || 0,
+        features: features ?? undefined
+      },
     });
     return NextResponse.json({ plan: updated });
   } catch (e: any) {

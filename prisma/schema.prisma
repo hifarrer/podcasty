@@ -177,6 +177,8 @@ model PlanConfig {
   plan         PlanType  @unique
   priceCents   Int       @default(0)
   monthlyLimit Int       @default(0)
+  yearlyPriceCents Int   @default(0)
+  yearlyLimit  Int       @default(0)
   features     Json?
   updatedAt    DateTime  @updatedAt
   createdAt    DateTime  @default(now())
