@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
@@ -46,6 +47,11 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
         };
       }
+    }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      allowDangerousEmailAccountLinking: true,
     })
   ],
   session: {
@@ -55,6 +61,18 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   callbacks: {
+    async signIn({ account, profile }) {
+      // Only allow Google sign-ins for verified emails
+      if (account?.provider === "google") {
+        const emailVerified = (profile as any)?.email_verified ?? (profile as any)?.verified_email;
+        const email = (profile as any)?.email;
+        if (!email || emailVerified === false) {
+          return false;
+        }
+        // Default NextAuth + PrismaAdapter will link Google to an existing user with the same verified email.
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
