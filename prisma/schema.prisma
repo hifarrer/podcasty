@@ -63,6 +63,12 @@ model User {
 
   plan      PlanType  @default(FREE)
   isAdmin   Boolean   @default(false)
+
+  // Stripe billing
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?
+  subscriptionStatus     String?
+  subscriptionPeriodEnd  DateTime?
 }
 
 model Account {
@@ -179,6 +185,8 @@ model PlanConfig {
   monthlyLimit Int       @default(0)
   yearlyPriceCents Int   @default(0)
   yearlyLimit  Int       @default(0)
+  stripePriceMonthlyId String?
+  stripePriceYearlyId  String?
   features     Json?
   updatedAt    DateTime  @updatedAt
   createdAt    DateTime  @default(now())

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     await requireAdmin();
     const prisma = await getPrisma();
     const body = await req.json();
-    const { plan, priceCents, monthlyLimit, yearlyPriceCents, yearlyLimit, features } = body || {};
+    const { plan, priceCents, monthlyLimit, yearlyPriceCents, yearlyLimit, stripePriceMonthlyId, stripePriceYearlyId, features } = body || {};
     if (!plan || !["FREE", "BASIC", "PREMIUM"].includes(plan)) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     const updated = await prisma.planConfig.upsert({
       where: { plan },
@@ -56,6 +56,8 @@ export async function POST(req: NextRequest) {
         monthlyLimit: Number(monthlyLimit) || 0,
         yearlyPriceCents: Number(yearlyPriceCents) || 0,
         yearlyLimit: Number(yearlyLimit) || 0,
+        stripePriceMonthlyId: stripePriceMonthlyId ?? undefined,
+        stripePriceYearlyId: stripePriceYearlyId ?? undefined,
         features: features ?? undefined
       },
       create: {
@@ -64,6 +66,8 @@ export async function POST(req: NextRequest) {
         monthlyLimit: Number(monthlyLimit) || 0,
         yearlyPriceCents: Number(yearlyPriceCents) || 0,
         yearlyLimit: Number(yearlyLimit) || 0,
+        stripePriceMonthlyId: stripePriceMonthlyId ?? undefined,
+        stripePriceYearlyId: stripePriceYearlyId ?? undefined,
         features: features ?? undefined
       },
     });

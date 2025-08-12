@@ -107,15 +107,44 @@ export default function PricingPage() {
               </div>
               <form action="/api/user" method="post" className="w-full">
                 <input type="hidden" name="plan" value={plan.plan} />
-                <button className="btn-primary w-full py-3">
-                  Choose {getPlanName(plan.plan)}
-                </button>
+                <CheckoutButton plan={plan} billing={billing} />
               </form>
             </div>
           );})}
         </div>
       </div>
     </div>
+  );
+}
+
+function CheckoutButton({ plan, billing }: { plan: Plan; billing: "monthly" | "yearly" }) {
+  const [loading, setLoading] = useState(false);
+  const handleCheckout = async () => {
+    setLoading(true);
+    try {
+      const priceId = billing === "monthly" ? (plan as any).stripePriceMonthlyId : (plan as any).stripePriceYearlyId;
+      if (!priceId) {
+        alert("This plan is not available for checkout yet. Please try again later.");
+        return;
+      }
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Checkout failed');
+      window.location.href = data.url;
+    } catch (e: any) {
+      alert(e.message || 'Checkout error');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <button type="button" onClick={handleCheckout} disabled={loading} className="btn-primary w-full py-3 disabled:opacity-50">
+      {loading ? 'Redirecting…' : `Choose ${plan.plan}`}
+    </button>
   );
 }
 

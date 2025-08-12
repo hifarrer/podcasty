@@ -31,6 +31,10 @@ const envSchema = z.object({
 
   APP_URL: z.string().url().optional(),
   PUBLIC_CDN_URL: z.string().url().optional(),
+
+  // Stripe
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
