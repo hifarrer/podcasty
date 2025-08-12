@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     if (!priceId) return NextResponse.json({ error: "Missing priceId" }, { status: 400 });
 
     if (!env.STRIPE_SECRET_KEY) return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
-    const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
+    const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
     const baseUrl = successUrl || process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3000";
     const cancelBase = cancelUrl || baseUrl;
