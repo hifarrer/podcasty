@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
-        const periodEnd = new Date((sub.current_period_end || 0) * 1000);
+        const currentPeriodEndUnix = Number((sub as any)?.current_period_end ?? 0);
+        const periodEnd = new Date(currentPeriodEndUnix * 1000);
         const status = sub.status;
 
         // Find user by customer ID
