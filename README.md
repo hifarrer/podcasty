@@ -71,6 +71,36 @@ Notes
 - Dynamic API routes are marked force-dynamic; no special config needed
 - Audio is streamed via `GET /api/proxy/[...key]` with byte‑range headers
 
+### Stripe (Billing and Webhooks)
+Prerequisites
+- In Vercel Project → Settings → Environment Variables, set:
+  - `STRIPE_SECRET_KEY`: your Stripe secret API key (e.g., `sk_live_...` or `sk_test_...`)
+  - `STRIPE_WEBHOOK_SECRET`: set after creating the webhook endpoint (below)
+
+Webhook endpoint (production)
+1. In Stripe Dashboard → Developers → Webhooks → Add endpoint
+2. Endpoint URL: `https://your-domain.vercel.app/api/webhooks/stripe`
+3. Select events to send:
+   - `checkout.session.completed`
+   - `customer.subscription.created`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+4. Create endpoint, then Reveal the Signing secret
+5. Copy the signing secret and set it in Vercel as `STRIPE_WEBHOOK_SECRET`
+6. Redeploy the web app
+
+Local development (Stripe CLI)
+1. Install Stripe CLI: https://stripe.com/docs/cli
+2. In your project directory, run:
+   - `stripe login`
+   - `stripe listen --events "checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted" --forward-to http://localhost:3000/api/webhooks/stripe`
+3. The CLI prints a secret like `whsec_...`. Put it in `.env` as `STRIPE_WEBHOOK_SECRET=whsec_...`
+4. Ensure `STRIPE_SECRET_KEY` is set in `.env`
+
+Plan price IDs
+- In the app, go to Admin → Plans and set your Stripe Price IDs for monthly/yearly on each plan.
+- Pricing page uses these IDs to create Checkout Sessions.
+
 ### 3) Deploy the Worker (Render)
 - Render Dashboard → New → Background Worker
 - Repo: this project (root)

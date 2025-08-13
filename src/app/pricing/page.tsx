@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 interface Plan {
   plan: string;
@@ -119,9 +121,15 @@ export default function PricingPage() {
 
 function CheckoutButton({ plan, billing }: { plan: Plan; billing: "monthly" | "yearly" }) {
   const [loading, setLoading] = useState(false);
+  const { status } = useSession();
+  const router = useRouter();
   const handleCheckout = async () => {
     setLoading(true);
     try {
+      if (status !== "authenticated") {
+        router.push("/login?callbackUrl=/pricing");
+        return;
+      }
       const priceId = billing === "monthly" ? (plan as any).stripePriceMonthlyId : (plan as any).stripePriceYearlyId;
       if (!priceId) {
         alert("This plan is not available for checkout yet. Please try again later.");
