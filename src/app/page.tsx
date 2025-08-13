@@ -54,9 +54,13 @@ function PublicGallery() {
                 )}
               </div>
               {ep.audioUrl && (
-                <audio controls className="w-full mt-4">
-                  <source src={ep.audioUrl} type="audio/mpeg" />
-                </audio>
+                <audio
+                  key={ep.id}
+                  controls
+                  className="w-full mt-4"
+                  preload="none"
+                  src={ep.audioUrl}
+                />
               )}
             </div>
           ))}
