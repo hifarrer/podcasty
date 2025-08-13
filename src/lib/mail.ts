@@ -1,4 +1,5 @@
-import nodemailer, { Transporter } from "nodemailer";
+import nodemailer from "nodemailer";
+import type { Transporter } from "nodemailer";
 import { env } from "@/lib/env";
 import { Resend } from "resend";
 
