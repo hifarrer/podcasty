@@ -1,6 +1,6 @@
+"use client";
 import { Globe, Youtube, FileText, Mic } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { EpisodeStatus } from "@prisma/client";
+import { useEffect, useState } from "react";
 
 function SourceIcon({ type }: { type: string }) {
   switch (type) {
@@ -12,20 +12,25 @@ function SourceIcon({ type }: { type: string }) {
   }
 }
 
-async function PublicGallery() {
-  const episodes = await prisma.episode.findMany({
-    where: { isPublic: true, status: EpisodeStatus.PUBLISHED },
-    orderBy: { createdAt: 'desc' },
-    take: 30,
-    select: {
-      id: true,
-      title: true,
-      sourceType: true,
-      promptText: true,
-      audioUrl: true,
-    }
-  });
-  if (!episodes.length) return null;
+function PublicGallery() {
+  const [episodes, setEpisodes] = useState<any[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const pageSize = 9;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/public/episodes?offset=${offset}&limit=${pageSize}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (cancelled) return;
+      setEpisodes((prev) => [...prev, ...(data.episodes || [])]);
+      setHasMore(Boolean(data.hasMore));
+    })();
+    return () => { cancelled = true; };
+  }, [offset]);
+
+  if (!episodes.length && !hasMore) return null;
   return (
     <section className="py-16">
       <div className="max-w-7xl mx-auto px-6">
@@ -56,6 +61,16 @@ async function PublicGallery() {
             </div>
           ))}
         </div>
+        {hasMore && (
+          <div className="text-center mt-10">
+            <button
+              className="btn-secondary px-6 py-3"
+              onClick={() => setOffset((o) => o + pageSize)}
+            >
+              Load more
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
