@@ -28,6 +28,9 @@ export default function Navigation() {
             <Link href="/pricing" className="text-[#cccccc] hover:text-white transition-colors font-medium">
               Pricing
             </Link>
+            <Link href="/contact" className="text-[#cccccc] hover:text-white transition-colors font-medium">
+              Contact
+            </Link>
             <Link href="/profile" className="text-[#cccccc] hover:text-white transition-colors font-medium">
               Profile
             </Link>

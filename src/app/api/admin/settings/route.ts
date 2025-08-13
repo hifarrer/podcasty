@@ -51,11 +51,11 @@ export async function POST(req: NextRequest) {
     await requireAdmin();
     const prisma = await getPrisma();
     const body = await req.json();
-    const { siteName, maintenanceMode, settingsJson } = body || {};
+    const { siteName, siteEmail, maintenanceMode, settingsJson } = body || {};
     const updated = await prisma.siteSettings.upsert({
       where: { id: "main" },
-      update: { siteName: siteName ?? undefined, maintenanceMode: Boolean(maintenanceMode), settingsJson: settingsJson ?? undefined },
-      create: { id: "main", siteName: siteName ?? undefined, maintenanceMode: Boolean(maintenanceMode), settingsJson: settingsJson ?? undefined },
+      update: { siteName: siteName ?? undefined, siteEmail: siteEmail ?? undefined, maintenanceMode: Boolean(maintenanceMode), settingsJson: settingsJson ?? undefined },
+      create: { id: "main", siteName: siteName ?? undefined, siteEmail: siteEmail ?? undefined, maintenanceMode: Boolean(maintenanceMode), settingsJson: settingsJson ?? undefined },
     });
     return NextResponse.json({ settings: updated });
   } catch (e: any) {

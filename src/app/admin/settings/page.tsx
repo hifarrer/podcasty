@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 
 export default function AdminSettings() {
   const { data: session, status } = useSession();
-  const [settings, setSettings] = useState<any>({ siteName: "", maintenanceMode: false, settingsJson: undefined });
+  const [settings, setSettings] = useState<any>({ siteName: "", siteEmail: "", maintenanceMode: false, settingsJson: undefined });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string>("");
@@ -56,6 +56,10 @@ export default function AdminSettings() {
           <div>
             <label className="block text-sm text-[#cccccc] mb-1">Site Name</label>
             <input className="input-field w-full" value={settings?.siteName || ""} onChange={(e) => setSettings({ ...settings, siteName: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm text-[#cccccc] mb-1">Site Email</label>
+            <input type="email" className="input-field w-full" value={settings?.siteEmail || ""} onChange={(e) => setSettings({ ...settings, siteEmail: e.target.value })} placeholder="you@example.com" />
           </div>
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={!!settings?.maintenanceMode} onChange={(e) => setSettings({ ...settings, maintenanceMode: e.target.checked })} />

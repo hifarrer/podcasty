@@ -196,6 +196,7 @@ model PlanConfig {
 model SiteSettings {
   id              String   @id @default("main")
   siteName        String   @default("Podcasty")
+  siteEmail       String?
   maintenanceMode Boolean  @default(false)
   settingsJson    Json?
   updatedAt       DateTime @updatedAt
