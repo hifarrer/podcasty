@@ -28,6 +28,7 @@ export default function CreateEpisodePage() {
   const [voiceIdB, setVoiceIdB] = useState<string>("");
   const [voices, setVoices] = useState<{ voice_id: string; name: string; preview_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isPublic, setIsPublic] = useState<boolean>(true);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [episode, setEpisode] = useState<Episode | null>(null);
@@ -158,6 +159,7 @@ export default function CreateEpisodePage() {
           includeIntro,
           includeOutro,
           chaptersEnabled,
+          isPublic,
           speakers: mode === "DISCUSSION" ? 2 : 1,
           voices: mode === "DISCUSSION" ? [voiceId, voiceIdB].filter(Boolean) : [voiceId].filter(Boolean),
           speakerNames: mode === "DISCUSSION" ? {
@@ -208,6 +210,27 @@ export default function CreateEpisodePage() {
               </h2>
               
               <div className="space-y-6">
+                {/* Visibility */}
+                <div>
+                  <label className="block text-sm font-medium text-[#cccccc] mb-3">Visibility</label>
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsPublic(true)}
+                      className={`px-4 py-2 rounded-lg border-2 transition-all ${isPublic ? "border-[#00c8c8] bg-[#00c8c8]/10 text-white" : "border-[#333333] text-[#cccccc] hover:border-[#00c8c8]/50"}`}
+                    >
+                      Public
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsPublic(false)}
+                      className={`px-4 py-2 rounded-lg border-2 transition-all ${!isPublic ? "border-[#00c8c8] bg-[#00c8c8]/10 text-white" : "border-[#333333] text-[#cccccc] hover:border-[#00c8c8]/50"}`}
+                    >
+                      Private
+                    </button>
+                  </div>
+                  <p className="text-xs text-[#999999] mt-2">Public episodes may appear on the site gallery.</p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-[#cccccc] mb-3">Source Type</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

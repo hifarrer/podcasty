@@ -140,6 +140,7 @@ model Episode {
   coverUrl        String?
   jobId           String?
   errorMessage    String?
+  isPublic        Boolean       @default(true)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -147,6 +148,7 @@ model Episode {
   eventLogs EventLog[]
 
   @@index([userId, createdAt])
+  @@index([isPublic, createdAt])
 }
 
 model Feed {

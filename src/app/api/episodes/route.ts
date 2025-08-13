@@ -25,6 +25,7 @@ const CreateEpisodeSchema = z.object({
   includeMusic: z.boolean().default(false),
   chaptersEnabled: z.boolean().default(true),
   speakerNames: z.object({ A: z.string().optional(), B: z.string().optional() }).optional(),
+  isPublic: z.boolean().default(true),
 });
 
 export async function POST(req: NextRequest) {
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
         includeOutro: parsed.includeOutro,
         includeMusic: parsed.includeMusic,
         chaptersEnabled: parsed.chaptersEnabled,
+        isPublic: parsed.isPublic,
       },
     });
 

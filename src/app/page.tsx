@@ -1,3 +1,66 @@
+import { Globe, Youtube, FileText, Mic } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { EpisodeStatus } from "@prisma/client";
+
+function SourceIcon({ type }: { type: string }) {
+  switch (type) {
+    case 'YOUTUBE': return <Youtube className="w-5 h-5 text-[#ff0000]"/>;
+    case 'WEB': return <Globe className="w-5 h-5 text-[#00c8c8]"/>;
+    case 'TXT': return <FileText className="w-5 h-5 text-[#cccccc]"/>;
+    case 'PROMPT': return <Mic className="w-5 h-5 text-[#00c8c8]"/>;
+    default: return <Globe className="w-5 h-5 text-[#00c8c8]"/>;
+  }
+}
+
+async function PublicGallery() {
+  const episodes = await prisma.episode.findMany({
+    where: { isPublic: true, status: EpisodeStatus.PUBLISHED },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
+    select: {
+      id: true,
+      title: true,
+      sourceType: true,
+      promptText: true,
+      audioUrl: true,
+    }
+  });
+  if (!episodes.length) return null;
+  return (
+    <section className="py-16">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-10">
+          <h2 className="text-3xl font-bold text-white">Latest Public Episodes</h2>
+          <p className="text-[#cccccc]">A selection of episodes created by our users</p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {episodes.map((ep) => (
+            <div key={ep.id} className="card hover:border-[#00c8c8] transition-colors">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-white font-semibold truncate max-w-[85%]">{ep.title || 'Episode'}</div>
+                {ep.sourceType !== 'PROMPT' ? <SourceIcon type={ep.sourceType} /> : null}
+              </div>
+              <div className="text-sm text-[#cccccc] h-20 overflow-y-auto">
+                {ep.sourceType === 'PROMPT' ? (ep.promptText || '') : (
+                  <span className="inline-flex items-center gap-2 text-[#999999]">
+                    <SourceIcon type={ep.sourceType} />
+                    {ep.sourceType === 'YOUTUBE' ? 'YouTube' : ep.sourceType === 'WEB' ? 'Web' : 'TXT'} source
+                  </span>
+                )}
+              </div>
+              {ep.audioUrl && (
+                <audio controls className="w-full mt-4">
+                  <source src={ep.audioUrl} type="audio/mpeg" />
+                </audio>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   return (
     <div className="min-h-screen">
@@ -51,6 +114,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Public Episodes Gallery */}
+      <PublicGallery />
 
       {/* Features Section */}
       <section className="py-24 bg-[#222222]">
