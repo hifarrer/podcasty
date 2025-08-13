@@ -1,20 +1,3 @@
-import Link from "next/link";
-
-export default function AdminHome() {
-  return (
-    <div className="min-h-screen bg-[#1a1a1a] text-[#cccccc]">
-      <div className="max-w-3xl mx-auto px-6 py-12 space-y-6">
-        <h1 className="text-3xl font-bold gradient-text">Admin</h1>
-        <div className="card p-6 space-y-4">
-          <Link href="/admin/settings" className="btn-secondary inline-block">Site Settings</Link>
-          <Link href="/admin/users" className="btn-secondary inline-block">Users</Link>
-          <Link href="/admin/plans" className="btn-secondary inline-block">Plans</Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
