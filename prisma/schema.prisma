@@ -60,6 +60,7 @@ model User {
   episodes  Episode[]
   feed      Feed?
   eventLogs EventLog[]
+  usageAdjustments UsageAdjustment[]
 
   plan      PlanType  @default(FREE)
   isAdmin   Boolean   @default(false)
