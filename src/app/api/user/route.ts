@@ -15,12 +15,15 @@ export async function GET() {
     const start = new Date();
     start.setUTCDate(1); start.setUTCHours(0,0,0,0);
     const episodesThisMonth = await prisma.episode.count({ where: { userId, createdAt: { gte: start } } });
+    const adj = await prisma.usageAdjustment.aggregate({ _sum: { delta: true }, where: { userId, monthStart: start } });
+    const delta = adj._sum.delta || 0;
+    const effectiveUsed = Math.max(0, episodesThisMonth + delta);
 
     const limits: Record<string, number> = { FREE: 3, BASIC: 15, PREMIUM: 60 };
     const limit = limits[user.plan];
-    const remaining = Math.max(0, limit - episodesThisMonth);
+    const remaining = Math.max(0, limit - effectiveUsed);
 
-    return NextResponse.json({ user, usage: { limit, used: episodesThisMonth, remaining } });
+    return NextResponse.json({ user, usage: { limit, used: effectiveUsed, remaining, baseUsed: episodesThisMonth, delta } });
   } catch (_e: unknown) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }

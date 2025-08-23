@@ -48,6 +48,11 @@ export default function AdminUsers() {
     }
   };
 
+  const adjustUsage = async (id: string, delta: number, reason?: string) => {
+    if (!delta) return;
+    await updateUser(id, { adjustUsageBy: delta, reason });
+  };
+
   if (status === "loading" || loading) return <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center text-[#cccccc]">Loading...</div>;
   if (!session?.user?.isAdmin) return <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center text-[#cccccc]">Forbidden</div>;
 
@@ -66,6 +71,9 @@ export default function AdminUsers() {
               <div>
                 <div className="text-white font-semibold">{u.name || u.email || u.id}</div>
                 <div className="text-[#999999] text-sm">Plan: {u.plan} • {u.isAdmin ? "Admin" : "User"}</div>
+                {u.usage && (
+                  <div className="text-xs text-[#cccccc] mt-1">This month: used {u.usage.effective} (base {u.usage.baseUsed ?? u.usage.used}, adj {u.usage.delta ?? 0})</div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <select defaultValue={u.plan} disabled={savingId === u.id} onChange={(e) => updateUser(u.id, { plan: e.target.value })} className="select-field">
@@ -74,6 +82,10 @@ export default function AdminUsers() {
                   <option value="PREMIUM">Premium</option>
                 </select>
                 <button className="btn-secondary" disabled={savingId === u.id} onClick={() => updateUser(u.id, { isAdmin: !u.isAdmin })}>{savingId === u.id ? "Saving..." : (u.isAdmin ? "Revoke Admin" : "Make Admin")}</button>
+                <div className="flex items-center gap-1">
+                  <button className="btn-secondary" disabled={savingId === u.id} onClick={() => adjustUsage(u.id, -1, "Admin subtract 1")}>-1</button>
+                  <button className="btn-secondary" disabled={savingId === u.id} onClick={() => adjustUsage(u.id, 1, "Admin add 1")}>+1</button>
+                </div>
               </div>
             </div>
           ))}

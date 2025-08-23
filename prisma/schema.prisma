@@ -179,6 +179,19 @@ model EventLog {
   @@index([episodeId, createdAt])
 }
 
+model UsageAdjustment {
+  id         String   @id @default(cuid())
+  userId     String
+  monthStart DateTime
+  delta      Int
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, monthStart])
+}
+
 /// Plan configuration editable by admins
 model PlanConfig {
   id           String    @id @default(cuid())
