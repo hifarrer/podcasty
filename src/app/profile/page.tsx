@@ -12,6 +12,11 @@ export default function ProfilePage() {
   const { data: session, status: sessionStatus } = useSession();
   const [data, setData] = useState<UserResp | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdMsg, setPwdMsg] = useState<string>("");
+  const [pwdErr, setPwdErr] = useState<string>("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
     if (sessionStatus === "authenticated" && session) {
@@ -99,6 +104,69 @@ export default function ProfilePage() {
 
         <div className="mt-8">
           <Link href="/pricing" className="btn-secondary">Change Plan</Link>
+        </div>
+
+        {/* Password Reset */}
+        <div className="card mt-8">
+          <div className="text-white text-xl font-semibold mb-2">Change Password</div>
+          <div className="text-[#999999] text-sm mb-4">Set a new password for your account.</div>
+          {(pwdMsg || pwdErr) && (
+            <div className={`mb-3 rounded-lg p-3 ${pwdErr ? "bg-[#ef4444]/10 border border-[#ef4444]/20 text-[#ef4444]" : "bg-[#66cc66]/10 border border-[#66cc66]/20 text-[#66cc66]"}`}>
+              {pwdErr || pwdMsg}
+            </div>
+          )}
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setPwdLoading(true); setPwdErr(""); setPwdMsg("");
+              try {
+                const res = await fetch("/api/user/password", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({ currentPassword, newPassword })
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error || "Failed");
+                setPwdMsg("Password updated successfully");
+                setCurrentPassword(""); setNewPassword("");
+              } catch (err: any) {
+                setPwdErr(err.message || "Failed to update password");
+              } finally {
+                setPwdLoading(false);
+                setTimeout(() => { setPwdMsg(""); setPwdErr(""); }, 5000);
+              }
+            }}
+            className="grid gap-4"
+          >
+            <div>
+              <label className="block text-sm font-medium text-[#cccccc] mb-2">Current Password</label>
+              <input
+                type="password"
+                className="input-field w-full"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Enter current password"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#cccccc] mb-2">New Password</label>
+              <input
+                type="password"
+                className="input-field w-full"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                minLength={8}
+                required
+              />
+            </div>
+            <div>
+              <button className="btn-primary" disabled={pwdLoading}>
+                {pwdLoading ? "Updating..." : "Update Password"}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
