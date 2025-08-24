@@ -118,6 +118,60 @@ export async function processEpisode(episodeId: string): Promise<void> {
     const uploaded = await uploadBuffer({ buffer: mp3, contentType: "audio/mpeg", ext: ".mp3", prefix: "episodes" });
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_post_done", message: `Audio uploaded to ${uploaded.url}` } });
 
+    // Optional video render if we have a cover image and FAL_KEY
+    if (env.FAL_KEY && (ep.coverUrl || ep?.coverUrl)) {
+      await prisma.episode.update({ where: { id: episodeId }, data: { status: "VIDEO_RENDER" as any } });
+      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_render_start", message: "Starting video render via FAL" } });
+      try {
+        const base = env.APP_URL || "http://localhost:3000";
+        const audioUrl = uploaded.url.startsWith("http") ? uploaded.url : `${base}${uploaded.url}`;
+        const imageUrl = ep.coverUrl!.startsWith("http") ? ep.coverUrl! : `${base}${ep.coverUrl}`;
+        const submit = await fetch("https://queue.fal.run/fal-ai/infinitalk", {
+          method: "POST",
+          headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ image_url: imageUrl, audio_url: audioUrl, prompt: "A realistic podcast" }),
+        });
+        const submitData = await submit.json();
+        const requestId = submitData?.request_id;
+        if (!requestId) throw new Error("FAL request_id missing");
+        // Poll until completed
+        let videoUrl: string | null = null;
+        for (let i = 0; i < 120; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const status = await fetch(`https://queue.fal.run/fal-ai/infinitalk/requests/${encodeURIComponent(requestId)}/status`, {
+            headers: { "Authorization": `Key ${env.FAL_KEY}` },
+          });
+          const s = await status.json();
+          if (s?.status === "COMPLETED" || s?.status === "completed" || s?.success) {
+            const resultRes = await fetch(`https://queue.fal.run/fal-ai/infinitalk/requests/${encodeURIComponent(requestId)}`, {
+              headers: { "Authorization": `Key ${env.FAL_KEY}` },
+            });
+            const result = await resultRes.json();
+            const url = (result?.video?.url) || result?.video_url || result?.output?.[0]?.url || null;
+            if (url) {
+              const r = await fetch(url);
+              if (!r.ok) throw new Error(`Video fetch failed: ${r.status}`);
+              const contentType = r.headers.get("content-type") || "video/mp4";
+              const buf = Buffer.from(await r.arrayBuffer());
+              const ext = contentType.includes("webm") ? ".webm" : ".mp4";
+              const up = await uploadBuffer({ buffer: buf, contentType, ext, prefix: "videos" });
+              videoUrl = up.url;
+            }
+            break;
+          }
+          if (s?.status === "FAILED" || s?.status === "failed") break;
+        }
+        if (videoUrl) {
+          await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl } });
+          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_render_done", message: `Video uploaded to ${videoUrl}` } });
+        } else {
+          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_render_skip", message: "Video not available" } });
+        }
+      } catch (ve: any) {
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_render_error", message: ve?.message || "Video render failed" } });
+      }
+    }
+
     await prisma.episode.update({
       where: { id: episodeId },
       data: {

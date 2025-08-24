@@ -34,6 +34,7 @@ enum EpisodeStatus {
   SCRIPTING
   SYNTHESIZING
   AUDIO_POST
+  VIDEO_RENDER
   PUBLISHED
   FAILED
 }
@@ -61,6 +62,7 @@ model User {
   feed      Feed?
   eventLogs EventLog[]
   usageAdjustments UsageAdjustment[]
+  media     Media[]
 
   plan      PlanType  @default(FREE)
   isAdmin   Boolean   @default(false)
@@ -139,6 +141,7 @@ model Episode {
   audioBytes      BigInt?       @db.BigInt
   durationSec     Int?
   coverUrl        String?
+  videoUrl        String?
   jobId           String?
   errorMessage    String?
   isPublic        Boolean       @default(true)
@@ -150,6 +153,19 @@ model Episode {
 
   @@index([userId, createdAt])
   @@index([isPublic, createdAt])
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // image or video
+  url       String
+  key       String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Feed {

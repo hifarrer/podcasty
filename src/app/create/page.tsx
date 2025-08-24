@@ -11,6 +11,8 @@ type Episode = {
   id: string;
   title?: string | null;
   audioUrl?: string | null;
+  videoUrl?: string | null;
+  coverUrl?: string | null;
   showNotesMd?: string | null;
 };
 
@@ -34,6 +36,16 @@ export default function CreateEpisodePage() {
   const [episode, setEpisode] = useState<Episode | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const { data: session, status: sessionStatus } = useSession();
+
+  // Character images
+  const [characterA, setCharacterA] = useState<string>("");
+  const [gallery, setGallery] = useState<{ id: string; url: string; type: string }[]>([]);
+  const [showGalleryFor, setShowGalleryFor] = useState<"A" | "B" | null>(null);
+  const [showPromptFor, setShowPromptFor] = useState<"A" | "B" | null>(null);
+  const fileInputARef = useRef<HTMLInputElement | null>(null);
+  const [promptTextModal, setPromptTextModal] = useState<string>("");
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptGeneratedUrl, setPromptGeneratedUrl] = useState<string>("");
 
   // Effects must be declared before any early returns
   useEffect(() => {
@@ -84,6 +96,19 @@ export default function CreateEpisodePage() {
     };
   }, [createdId, voiceId, voiceIdB]);
 
+  // Load media gallery on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        if (sessionStatus !== "authenticated" || !session) return;
+        const r = await fetch("/api/media", { cache: "no-store", credentials: "include" });
+        if (!r.ok) return; // likely unauthenticated
+        const d = await r.json();
+        if (Array.isArray(d.media)) setGallery(d.media);
+      } catch {}
+    })();
+  }, [sessionStatus, session]);
+
   // Check if user is authenticated
   if (sessionStatus === "loading") {
     return (
@@ -133,6 +158,8 @@ export default function CreateEpisodePage() {
       case "POST_PROCESSING": // legacy label
       case "AUDIO_POST":
         return { progress: 85, message: "Post-processing", step: "Finalizing audio..." };
+      case "VIDEO_RENDER":
+        return { progress: 95, message: "Rendering video", step: "Creating lipsync video..." };
       case "PUBLISHED":
         return { progress: 100, message: "Complete!", step: "Episode ready!" };
       case "FAILED":
@@ -145,6 +172,9 @@ export default function CreateEpisodePage() {
   async function submit() {
     setLoading(true);
     try {
+      if (!characterA) {
+        throw new Error("Please add Character 1 image.");
+      }
       const res = await fetch("/api/episodes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -166,6 +196,7 @@ export default function CreateEpisodePage() {
             A: voices.find((v) => v.voice_id === voiceId)?.name || undefined,
             B: voices.find((v) => v.voice_id === voiceIdB)?.name || undefined,
           } : undefined,
+          coverUrl: characterA || undefined,
         }),
       });
       const data = await res.json();
@@ -378,6 +409,85 @@ export default function CreateEpisodePage() {
               </div>
             </div>
 
+            {/* Characters */}
+            <div className="card">
+              <h2 className="text-2xl font-semibold text-white mb-6">Characters</h2>
+              <div className="grid md:grid-cols-1 gap-8">
+                <div>
+                  <div className="text-[#cccccc] mb-2 font-medium">Character</div>
+                  <div className="space-y-3">
+                    {characterA && (
+                      <img src={characterA} alt="Character A" className="w-full h-40 object-cover rounded" />
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className="btn-secondary" onClick={() => fileInputARef.current?.click()}>Upload Image</button>
+                      <button type="button" className="btn-secondary" onClick={() => setShowGalleryFor("A")}>Select from Gallery</button>
+                      <button type="button" className="btn-primary" onClick={() => setShowPromptFor("A")}>Describe with Prompt</button>
+                      <input ref={fileInputARef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const fd = new FormData();
+                        fd.append("file", f);
+                        const r = await fetch("/api/uploads", { method: "POST", body: fd, credentials: "include" });
+                        const d = await r.json();
+                        if (!r.ok) { alert(d.error || "Upload failed"); return; }
+                        setCharacterA(d.url);
+                        try { const gr = await fetch("/api/media", { credentials: "include" }); const gd = await gr.json(); if (gd.media) setGallery(gd.media); } catch {}
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Voice Selection */}
+            <div className="card">
+              <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-[#00c8c8] to-[#007bff] rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                </div>
+                Voice Selection
+              </h2>
+              
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-[#cccccc] mb-3">Voice A</label>
+                  <select className="select-field w-full" value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
+                    {voices.map((v) => (
+                      <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
+                    ))}
+                  </select>
+                  {voices.find((v) => v.voice_id === voiceId)?.preview_url && (
+                    <div className="mt-3">
+                      <audio key={voiceId} controls className="w-full" preload="none">
+                        <source src={voices.find((v) => v.voice_id === voiceId)!.preview_url as string} />
+                      </audio>
+                    </div>
+                  )}
+                </div>
+                
+                {mode === "DISCUSSION" && (
+                  <div>
+                    <label className="block text-sm font-medium text-[#cccccc] mb-3">Voice B</label>
+                    <select className="select-field w-full" value={voiceIdB} onChange={(e) => setVoiceIdB(e.target.value)}>
+                      {voices.map((v) => (
+                        <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
+                      ))}
+                    </select>
+                    {voiceIdB && voices.find((v) => v.voice_id === voiceIdB)?.preview_url && (
+                      <div className="mt-3">
+                        <audio key={voiceIdB} controls className="w-full" preload="none">
+                          <source src={voices.find((v) => v.voice_id === voiceIdB)!.preview_url as string} />
+                        </audio>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Episode Configuration */}
             <div className="card">
               <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-3">
@@ -513,6 +623,120 @@ export default function CreateEpisodePage() {
             </button>
           </div>
 
+          {/* Gallery Modal */}
+          {showGalleryFor && (
+            <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+              <div className="bg-[#1f1f1f] border border-[#333] rounded-lg max-w-3xl w-full max-h-[80vh] overflow-auto p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl text-white font-semibold">Select from Gallery</h3>
+                  <button className="text-[#cccccc] hover:text-white" onClick={() => setShowGalleryFor(null)}>Close</button>
+                </div>
+                {gallery.length === 0 ? (
+                  <div className="text-[#999]">Your gallery is empty. Upload or generate an image first.</div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {gallery.filter(g => g.type === "image").map(g => (
+                      <button key={g.id} type="button" className="block" onClick={() => {
+                        setCharacterA(g.url);
+                        setShowGalleryFor(null);
+                      }}>
+                        <img src={g.url} className="w-full h-32 object-cover rounded border border-[#333]" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Prompt Modal */}
+          {showPromptFor && (
+            <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+              <div className="bg-[#1f1f1f] border border-[#333] rounded-lg max-w-xl w-full p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl text-white font-semibold">Describe with Prompt</h3>
+                  <button className="text-[#cccccc] hover:text-white" onClick={() => { setShowPromptFor(null); setPromptTextModal(""); setPromptGeneratedUrl(""); }}>Close</button>
+                </div>
+                <textarea className="input-field w-full h-28 resize-none" placeholder="A realistic headshot, soft lighting, 3/4 view"
+                  value={promptTextModal} onChange={(e) => setPromptTextModal(e.target.value)} />
+                <div className="flex gap-2">
+                  <button disabled={promptLoading || !promptTextModal.trim()} className="btn-primary disabled:opacity-50" onClick={async () => {
+                    try {
+                      setPromptLoading(true);
+                      setPromptGeneratedUrl("");
+                      const previewBody = { prompt: promptTextModal, aspect_ratio: "16:9" };
+                      console.log("[FAL] Submitting preview", { url: "/api/fal/imagen4/preview", method: "POST", headers: { "Content-Type": "application/json" }, body: previewBody });
+                      const r = await fetch("/api/fal/imagen4/preview", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(previewBody) });
+                      const d = await r.json();
+                      console.log("[FAL] Preview response", { status: r.status, body: d });
+                      if (!r.ok) { alert(d.error || "FAL submit failed"); return; }
+                      const reqId = d.request_id;
+                      for (let i = 0; i < 60; i++) {
+                        await new Promise(res => setTimeout(res, 2000));
+                        const statusUrl = `/api/fal/imagen4/requests/${encodeURIComponent(reqId)}/status`;
+                        const s = await fetch(statusUrl, { credentials: "include" });
+                        const sd = await s.json();
+                        if (i === 0 || sd?.status === "COMPLETED" || sd?.status === "completed") {
+                          console.log("[FAL] Status response", { url: statusUrl, status: s.status, body: sd });
+                        }
+                        if (sd?.status === "COMPLETED" || sd?.status === "completed") {
+                          const resultUrl = `/api/fal/imagen4/requests/${encodeURIComponent(reqId)}?save=1`;
+                          console.log("[FAL] Fetching result", { url: resultUrl });
+                          const rr = await fetch(resultUrl, { credentials: "include" });
+                          const rd = await rr.json();
+                          console.log("[FAL] Result response", { status: rr.status, body: rd });
+                          const url = rd?.saved?.url || rd?.imageUrl || rd?.data?.image?.url || rd?.data?.image_url;
+                          if (url) {
+                            setPromptGeneratedUrl(url);
+                            // Attempt to add to gallery immediately if authenticated
+                            try {
+                              if (session) {
+                                // If server already saved with DB id, skip duplicate import
+                                const savedId = rd?.saved?.id;
+                                if (!savedId || savedId === "anon") {
+                                  await fetch("/api/media", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ url }) });
+                                }
+                                // Refresh gallery
+                                const gr = await fetch("/api/media", { credentials: "include" });
+                                if (gr.ok) {
+                                  const gd = await gr.json();
+                                  if (Array.isArray(gd.media)) setGallery(gd.media);
+                                }
+                              }
+                            } catch {}
+                          }
+                          break;
+                        }
+                      }
+                    } catch (err) {
+                      console.error("[FAL] Generate error", err);
+                      alert("Image generation failed. Check console for details.");
+                    } finally {
+                      setPromptLoading(false);
+                    }
+                  }}>{promptLoading ? "Generating..." : "Generate"}</button>
+                  {promptGeneratedUrl && (
+                    <button className="btn-secondary" onClick={() => { setPromptGeneratedUrl(""); }}>Regenerate</button>
+                  )}
+                </div>
+                {promptGeneratedUrl && (
+                  <div className="space-y-3">
+                    <img src={promptGeneratedUrl} className="w-full h-64 object-cover rounded border border-[#333]" />
+                    <div className="flex gap-2">
+                      <button className="btn-primary" onClick={() => {
+                        setCharacterA(promptGeneratedUrl);
+                        setShowPromptFor(null);
+                        setPromptTextModal("");
+                        setPromptGeneratedUrl("");
+                      }}>Use this image</button>
+                      <button className="btn-secondary" onClick={() => { setPromptGeneratedUrl(""); }}>Regenerate</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Status Panel */}
           <div className="lg:col-span-1">
             {createdId && (
@@ -564,11 +788,15 @@ export default function CreateEpisodePage() {
                     
                     <div className="space-y-3">
                       <div className="text-lg font-semibold text-white">{episode.title || "Episode"}</div>
-                      {episode.audioUrl && (
+                      {episode.videoUrl ? (
+                        <video controls className="w-full" preload="metadata" poster={episode.coverUrl || undefined}>
+                          <source src={episode.videoUrl} />
+                        </video>
+                      ) : episode.audioUrl ? (
                         <audio controls className="w-full">
                           <source src={episode.audioUrl} type="audio/mpeg" />
                         </audio>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Save Option */}

@@ -12,6 +12,24 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest, { params }: { params: { key: string[] } }) {
   const key = decodeURIComponent(params.key.join("/"));
   const range = req.headers.get("range") || undefined;
+  const lower = key.toLowerCase();
+  const inferredType = lower.endsWith(".mp3")
+    ? "audio/mpeg"
+    : lower.endsWith(".mp4") || lower.endsWith(".m4v")
+    ? "video/mp4"
+    : lower.endsWith(".webm")
+    ? "video/webm"
+    : lower.endsWith(".png")
+    ? "image/png"
+    : lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+    ? "image/jpeg"
+    : lower.endsWith(".gif")
+    ? "image/gif"
+    : lower.endsWith(".webp")
+    ? "image/webp"
+    : lower.endsWith(".txt")
+    ? "text/plain; charset=utf-8"
+    : "application/octet-stream";
 
   // If S3 configured, proxy from S3
   if (env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY) {
@@ -25,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: { key: string[
     const res = await s3.send(cmd);
     const body = res.Body as any; // stream
     const headers = new Headers();
-    headers.set("Content-Type", "audio/mpeg");
+    headers.set("Content-Type", (res.ContentType as string) || inferredType);
     headers.set("Accept-Ranges", "bytes");
     if (res.ContentLength != null) headers.set("Content-Length", String(res.ContentLength));
     if (res.ContentRange) headers.set("Content-Range", res.ContentRange);
@@ -39,7 +57,7 @@ export async function GET(req: NextRequest, { params }: { params: { key: string[
     const stat = await fsp.stat(filePath);
     const total = stat.size;
     const headers = new Headers();
-    headers.set("Content-Type", "audio/mpeg");
+    headers.set("Content-Type", inferredType);
     headers.set("Accept-Ranges", "bytes");
 
     if (range) {
