@@ -35,9 +35,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   try {
     let userId: string | null = null;
     try {
-      const { getServerSession } = await import("next-auth");
-      const { authOptions } = await import("@/lib/auth");
-      const session = await getServerSession(authOptions as any);
+      const nextAuthMod: any = await import("next-auth");
+      const authMod: any = await import("@/lib/auth");
+      const session: any = await nextAuthMod.getServerSession(authMod.authOptions);
       userId = session?.user?.id || null;
     } catch {}
     const falKey = process.env.FAL_KEY || env.FAL_KEY;
