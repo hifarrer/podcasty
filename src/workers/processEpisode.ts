@@ -91,18 +91,18 @@ export async function processEpisode(episodeId: string): Promise<void> {
       : await synthesizeSsml(script.ssml, voiceA as string);
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_done", message: `TTS synthesis done (${ttsBuffer.length} bytes)` } });
 
-    // New: Split into ~20-second parts using LLM output if available
-    const parts20s: string[] = (() => {
+    // Extract first phrase (~10–15s) for a short preview video
+    const firstPhrase: string | null = (() => {
       const p = (script as any)?.parts20s || null;
-      if (!p || typeof p !== "object") return [];
+      if (!p || typeof p !== "object") return null;
       const keys = Object.keys(p).sort((a,b) => Number(a) - Number(b));
-      return keys.map((k) => String(p[k] || "").trim()).filter(Boolean);
+      if (keys.length === 0) return null;
+      const v = String(p[keys[0]] || "").trim();
+      return v || null;
     })();
 
     const base = env.APP_URL || "http://localhost:3000";
     const episodePrefix = `episodes/${episodeId}`;
-    const partAudioUrls: string[] = [];
-    const partVideoUrls: string[] = [];
 
     const extendTextToMinSeconds = (input: string, estimatedWpm: number, minSeconds: number): string => {
       const words = (input || "").trim().split(/\s+/).filter(Boolean);
@@ -116,66 +116,50 @@ export async function processEpisode(episodeId: string): Promise<void> {
       return out;
     };
 
-    if (parts20s.length > 0) {
-      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "split_info", message: `Generating ${parts20s.length} parts (@~20s)` } });
-      for (let i = 0; i < parts20s.length; i++) {
-        const idx = i + 1;
-        const fname = `ep_${episodeId}_part${idx}`;
-        const textRaw = parts20s[i];
-        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_start", message: `Synth part ${idx} (${fname}.mp3)` } });
-        // Synthesize each part as single-voice using voiceA, ensuring ~15–20s
-        const estWpm = (script as any)?.estimated_wpm || 150;
-        const text = extendTextToMinSeconds(textRaw, estWpm, 15);
-        const partBuf = await synthesizeSsml(text, (Array.isArray(ep.voicesJson) && (ep.voicesJson as any[])[0]) ? (ep.voicesJson as any[])[0] : ep.voice);
-        const partMp3 = await wavToMp3Loudnorm(partBuf, "mp3");
-        // Estimate duration from size at 160kbps (for logging only)
-        const estSec = Math.max(1, Math.round((partMp3.length * 8) / 160_000));
-        const upA = await uploadBuffer({ buffer: partMp3, contentType: "audio/mpeg", ext: ".mp3", prefix: episodePrefix });
-        partAudioUrls.push(upA.url.startsWith("http") ? upA.url : `${base}${upA.url}`);
-        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_done", message: `Part ${idx} audio ready (${fname}.mp3, ~${estSec}s) -> ${upA.url}` } });
-
-        // Lipsync per-part if cover image available
-        if (env.FAL_KEY && (ep.coverUrl || ep?.coverUrl)) {
-          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_part_start", message: `Lipsync part ${idx} (${fname}.mp4)` } });
-          let imageUrl = ep.coverUrl || "";
-          if (imageUrl && !imageUrl.startsWith("http")) imageUrl = `${base}${imageUrl}`;
-          const submit = await fetch("https://queue.fal.run/fal-ai/infinitalk", {
-            method: "POST",
-            headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ image_url: imageUrl, audio_url: partAudioUrls[partAudioUrls.length - 1], prompt: "A realistic podcast" }),
-          });
-          const submitData = await submit.json();
-          const requestId = submitData?.request_id;
-          if (requestId) {
-            for (let tries = 0; tries < 120; tries++) {
-              await new Promise((r) => setTimeout(r, 2000));
-              const status = await fetch(`https://queue.fal.run/fal-ai/infinitalk/requests/${encodeURIComponent(requestId)}/status`, {
-                headers: { "Authorization": `Key ${env.FAL_KEY}` },
-              });
-              const s = await status.json();
-              if (s?.status === "COMPLETED" || s?.status === "completed" || s?.success) {
-                const resultRes = await fetch(`https://queue.fal.run/fal-ai/infinitalk/requests/${encodeURIComponent(requestId)}`, {
-                  headers: { "Authorization": `Key ${env.FAL_KEY}` },
-                });
-                const result = await resultRes.json();
-                const url = (result?.video?.url) || result?.video_url || result?.output?.[0]?.url || null;
-                if (url) {
-                  const r = await fetch(url);
-                  if (r.ok) {
-                    const contentType = r.headers.get("content-type") || "video/mp4";
-                    const buf = Buffer.from(await r.arrayBuffer());
-                    const ext = contentType.includes("webm") ? ".webm" : ".mp4";
-                    const upV = await uploadBuffer({ buffer: buf, contentType, ext, prefix: episodePrefix });
-                    partVideoUrls.push(upV.url.startsWith("http") ? upV.url : `${base}${upV.url}`);
-                    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_part_done", message: `Part ${idx} video ready (${fname}.mp4) -> ${upV.url}` } });
-                  }
+    // Optional short preview video (first ~10s) and full audio only
+    if (firstPhrase && env.FAL_KEY && (ep.coverUrl || ep?.coverUrl)) {
+      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "preview_start", message: "Generating short preview video (first sentence)" } });
+      const estWpm = (script as any)?.estimated_wpm || 150;
+      const previewText = extendTextToMinSeconds(firstPhrase, estWpm, 10);
+      const previewBuf = await synthesizeSsml(previewText, voiceA);
+      const previewMp3 = await wavToMp3Loudnorm(previewBuf, "mp3");
+      const upPrev = await uploadBuffer({ buffer: previewMp3, contentType: "audio/mpeg", ext: ".mp3", prefix: episodePrefix });
+      let imageUrl = ep.coverUrl || "";
+      if (imageUrl && !imageUrl.startsWith("http")) imageUrl = `${base}${imageUrl}`;
+      try {
+        const submit = await fetch("https://queue.fal.run/fal-ai/infinitalk", {
+          method: "POST",
+          headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ image_url: imageUrl, audio_url: (upPrev.url.startsWith("http") ? upPrev.url : `${base}${upPrev.url}`), prompt: "A realistic podcast" }),
+        });
+        const submitData = await submit.json();
+        const requestId = submitData?.request_id;
+        if (requestId) {
+          for (let i = 0; i < 120; i++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const status = await fetch(`https://queue.fal.run/fal-ai/infinitalk/requests/${encodeURIComponent(requestId)}/status`, { headers: { "Authorization": `Key ${env.FAL_KEY}` } });
+            const s = await status.json();
+            if (s?.status === "COMPLETED" || s?.status === "completed" || s?.success) {
+              const resultRes = await fetch(`https://queue.fal.run/fal-ai/infinitalk/requests/${encodeURIComponent(requestId)}`, { headers: { "Authorization": `Key ${env.FAL_KEY}` } });
+              const result = await resultRes.json();
+              const url = (result?.video?.url) || result?.video_url || result?.output?.[0]?.url || null;
+              if (url) {
+                const r = await fetch(url);
+                if (r.ok) {
+                  const contentType = r.headers.get("content-type") || "video/mp4";
+                  const buf = Buffer.from(await r.arrayBuffer());
+                  const upV = await uploadBuffer({ buffer: buf, contentType, ext: ".mp4", prefix: "videos" });
+                  await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl: upV.url } });
+                  await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "preview_done", message: `Preview video ready -> ${upV.url}` } });
                 }
-                break;
               }
-              if (s?.status === "FAILED" || s?.status === "failed") break;
+              break;
             }
+            if (s?.status === "FAILED" || s?.status === "failed") break;
           }
         }
+      } catch (e: any) {
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "preview_error", message: e?.message || "Preview video failed" } });
       }
     }
 
@@ -270,32 +254,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
       }
     }
 
-    // If parts were generated and at least one video exists, attempt external merge
-    if (partVideoUrls.length > 0 && env.FFMPEG_API_KEY) {
-      try {
-        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "merge_start", message: `Merging ${partVideoUrls.length} videos` } });
-        const mergeRes = await fetch("https://ffmpegapi.net/api/merge_videos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-API-Key": env.FFMPEG_API_KEY },
-          body: JSON.stringify({ video_urls: partVideoUrls, audio_url: (uploaded.url.startsWith("http") ? uploaded.url : `${base}${uploaded.url}`), async: false })
-        });
-        const mergeData = await mergeRes.json();
-        if (mergeRes.ok && mergeData?.download_url) {
-          // Download merged and upload to our storage
-          const r = await fetch(mergeData.download_url);
-          if (r.ok) {
-            const buf = Buffer.from(await r.arrayBuffer());
-            const upMerged = await uploadBuffer({ buffer: buf, contentType: "video/mp4", ext: ".mp4", prefix: "videos" });
-            await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl: upMerged.url } });
-            await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "merge_done", message: `Merged video ${upMerged.url}` } });
-          }
-        } else {
-          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "merge_skip", message: `Merge failed or no URL` } });
-        }
-      } catch (e: any) {
-        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "merge_error", message: e?.message || "Merge error" } });
-      }
-    }
+    // No multi-part merging. Preview video (first sentence) + full-length audio only.
 
     await prisma.episode.update({
       where: { id: episodeId },
