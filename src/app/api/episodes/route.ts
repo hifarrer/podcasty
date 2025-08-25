@@ -26,7 +26,8 @@ const CreateEpisodeSchema = z.object({
   chaptersEnabled: z.boolean().default(true),
   speakerNames: z.object({ A: z.string().optional(), B: z.string().optional() }).optional(),
   isPublic: z.boolean().default(true),
-  coverUrl: z.string().url().optional(),
+  // Accept relative or absolute URL for cover image
+  coverUrl: z.string().optional(),
   videoImageUrl: z.string().url().optional(),
 });
 

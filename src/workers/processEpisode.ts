@@ -125,7 +125,17 @@ export async function processEpisode(episodeId: string): Promise<void> {
       try {
         const base = env.APP_URL || "http://localhost:3000";
         const audioUrl = uploaded.url.startsWith("http") ? uploaded.url : `${base}${uploaded.url}`;
-        const imageUrl = ep.coverUrl!.startsWith("http") ? ep.coverUrl! : `${base}${ep.coverUrl}`;
+        // If image is stored via our proxy, construct the absolute proxy URL to ensure it resolves publicly
+        let imageUrl = ep.coverUrl || "";
+        if (imageUrl && !imageUrl.startsWith("http")) {
+          imageUrl = `${base}${imageUrl}`;
+        }
+        // Additionally, if this is a stored S3 key style like "media/..." normalize to our proxy endpoint
+        if (imageUrl && imageUrl.includes("/api/proxy/") === false && (imageUrl.includes("media%2F") || imageUrl.includes("/media/") || imageUrl.includes("episodes%2F") || imageUrl.includes("/uploads/"))) {
+          const keyPart = imageUrl.split("/api/proxy/")[1] || imageUrl.split(base)[1] || imageUrl;
+          const encodedKey = encodeURIComponent(keyPart.replace(/^\//, ""));
+          imageUrl = `${base}/api/proxy/${encodedKey}`;
+        }
         const submit = await fetch("https://queue.fal.run/fal-ai/infinitalk", {
           method: "POST",
           headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },

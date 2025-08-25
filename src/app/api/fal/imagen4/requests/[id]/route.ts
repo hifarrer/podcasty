@@ -55,6 +55,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (save) {
       const imageUrl = extractFirstImageUrl(data) || data?.image?.url || data?.image_url || (Array.isArray(data?.images) ? data.images[0]?.url : null) || null;
       if (!imageUrl) return NextResponse.json({ error: "No image URL in FAL response", data }, { status: 400 });
+      const s3Configured = !!(process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY);
+      // If object storage is not configured, avoid downloading/re-uploading and just save the external URL
+      if (!s3Configured) {
+        const canSaveToDb = !!(prisma as any)?.media?.create;
+        if (userId && canSaveToDb) {
+          try {
+            const m = await prisma.media.create({ data: { userId, type: "image", url: imageUrl, key: null } });
+            return NextResponse.json({ data, saved: { url: m.url, id: m.id }, note: "saved_external_url" }, { status: 200 });
+          } catch {
+            return NextResponse.json({ data, saved: { url: imageUrl, id: "anon" }, note: "saved_external_url" }, { status: 200 });
+          }
+        }
+        return NextResponse.json({ data, saved: { url: imageUrl, id: "anon" }, note: "saved_external_url" }, { status: 200 });
+      }
       try {
         const r = await fetch(imageUrl);
         if (!r.ok) throw new Error(`Image fetch failed: ${r.status}`);

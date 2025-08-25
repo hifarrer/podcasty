@@ -555,54 +555,6 @@ export default function CreateEpisodePage() {
               </div>
             </div>
 
-            {/* Voice Selection */}
-            <div className="card">
-              <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-[#00c8c8] to-[#007bff] rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                </div>
-                Voice Selection
-              </h2>
-              
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-[#cccccc] mb-3">Voice A</label>
-                  <select className="select-field w-full" value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
-                    {voices.map((v) => (
-                      <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
-                    ))}
-                  </select>
-                  {voices.find((v) => v.voice_id === voiceId)?.preview_url && (
-                    <div className="mt-3">
-                      <audio key={voiceId} controls className="w-full" preload="none">
-                        <source src={voices.find((v) => v.voice_id === voiceId)!.preview_url as string} />
-                      </audio>
-                    </div>
-                  )}
-                </div>
-                
-                {mode === "DISCUSSION" && (
-                  <div>
-                    <label className="block text-sm font-medium text-[#cccccc] mb-3">Voice B</label>
-                    <select className="select-field w-full" value={voiceIdB} onChange={(e) => setVoiceIdB(e.target.value)}>
-                      {voices.map((v) => (
-                        <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
-                      ))}
-                    </select>
-                    {voiceIdB && voices.find((v) => v.voice_id === voiceIdB)?.preview_url && (
-                      <div className="mt-3">
-                        <audio key={voiceIdB} controls className="w-full" preload="none">
-                          <source src={voices.find((v) => v.voice_id === voiceIdB)!.preview_url as string} />
-                        </audio>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Generate Button */}
             <button
               onClick={submit}
