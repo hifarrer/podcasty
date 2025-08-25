@@ -125,7 +125,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
         await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_start", message: `Synth part ${idx} (${fname}.mp3)` } });
         // Synthesize each part as single-voice using voiceA, ensuring ~15–20s
         const estWpm = (script as any)?.estimated_wpm || 150;
-        let text = extendTextToMinSeconds(textRaw, estWpm, 15);
+        const text = extendTextToMinSeconds(textRaw, estWpm, 15);
         const partBuf = await synthesizeSsml(text, (Array.isArray(ep.voicesJson) && (ep.voicesJson as any[])[0]) ? (ep.voicesJson as any[])[0] : ep.voice);
         const partMp3 = await wavToMp3Loudnorm(partBuf, "mp3");
         // Estimate duration from size at 160kbps (for logging only)
