@@ -104,19 +104,35 @@ export async function processEpisode(episodeId: string): Promise<void> {
     const partAudioUrls: string[] = [];
     const partVideoUrls: string[] = [];
 
+    const extendTextToMinSeconds = (input: string, estimatedWpm: number, minSeconds: number): string => {
+      const words = (input || "").trim().split(/\s+/).filter(Boolean);
+      const wordsPerSec = Math.max(1, Math.round(estimatedWpm / 60));
+      const minWords = Math.max(10, Math.ceil(wordsPerSec * minSeconds));
+      let out = input.trim();
+      while (out.split(/\s+/).filter(Boolean).length < minWords) {
+        out = `${out} ${input.trim()}`.trim();
+        if (out.length > 8000) break;
+      }
+      return out;
+    };
+
     if (parts20s.length > 0) {
       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "split_info", message: `Generating ${parts20s.length} parts (@~20s)` } });
       for (let i = 0; i < parts20s.length; i++) {
         const idx = i + 1;
         const fname = `ep_${episodeId}_part${idx}`;
-        const text = parts20s[i];
+        const textRaw = parts20s[i];
         await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_start", message: `Synth part ${idx} (${fname}.mp3)` } });
-        // Synthesize each part as single-voice using voiceA
+        // Synthesize each part as single-voice using voiceA, ensuring ~15–20s
+        const estWpm = (script as any)?.estimated_wpm || 150;
+        let text = extendTextToMinSeconds(textRaw, estWpm, 15);
         const partBuf = await synthesizeSsml(text, (Array.isArray(ep.voicesJson) && (ep.voicesJson as any[])[0]) ? (ep.voicesJson as any[])[0] : ep.voice);
         const partMp3 = await wavToMp3Loudnorm(partBuf, "mp3");
+        // Estimate duration from size at 160kbps (for logging only)
+        const estSec = Math.max(1, Math.round((partMp3.length * 8) / 160_000));
         const upA = await uploadBuffer({ buffer: partMp3, contentType: "audio/mpeg", ext: ".mp3", prefix: episodePrefix });
         partAudioUrls.push(upA.url.startsWith("http") ? upA.url : `${base}${upA.url}`);
-        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_done", message: `Part ${idx} audio ready (${fname}.mp3) -> ${upA.url}` } });
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_done", message: `Part ${idx} audio ready (${fname}.mp3, ~${estSec}s) -> ${upA.url}` } });
 
         // Lipsync per-part if cover image available
         if (env.FAL_KEY && (ep.coverUrl || ep?.coverUrl)) {
@@ -126,7 +142,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
           const submit = await fetch("https://queue.fal.run/fal-ai/infinitalk", {
             method: "POST",
             headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ image_url: imageUrl, audio_url: partAudioUrls[partAudioUrls.length - 1], prompt: "A realistic podcast", num_frames: 610 }),
+            body: JSON.stringify({ image_url: imageUrl, audio_url: partAudioUrls[partAudioUrls.length - 1], prompt: "A realistic podcast" }),
           });
           const submitData = await submit.json();
           const requestId = submitData?.request_id;
@@ -211,7 +227,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
         const submit = await fetch("https://queue.fal.run/fal-ai/infinitalk", {
           method: "POST",
           headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ image_url: imageUrl, audio_url: audioUrl, prompt: "A realistic podcast", num_frames: 610 }),
+          body: JSON.stringify({ image_url: imageUrl, audio_url: audioUrl, prompt: "A realistic podcast" }),
         });
         const submitData = await submit.json();
         const requestId = submitData?.request_id;

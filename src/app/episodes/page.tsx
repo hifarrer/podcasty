@@ -71,6 +71,7 @@ export default function EpisodesPage() {
   const router = useRouter();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [debugMap, setDebugMap] = useState<Record<string, { open: boolean; loading: boolean; videos: string[]; audios: string[] }>>({});
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -103,6 +104,35 @@ export default function EpisodesPage() {
       setLoading(false);
     }
   };
+
+  async function toggleDebug(epId: string) {
+    setDebugMap((m) => ({ ...m, [epId]: { ...(m[epId] || { open: false, loading: false, videos: [], audios: [] }), open: !(m[epId]?.open) } }));
+    const state = debugMap[epId];
+    if (!state || (!state.videos.length && !state.audios.length)) {
+      setDebugMap((m) => ({ ...m, [epId]: { ...(m[epId] || { open: true, loading: false, videos: [], audios: [] }), loading: true } }));
+      try {
+        const r = await fetch(`/api/episodes/${epId}/events`, { credentials: "include" });
+        const d = await r.json();
+        const videos: string[] = [];
+        const audios: string[] = [];
+        if (Array.isArray(d.events)) {
+          for (const ev of d.events) {
+            const msg: string = ev?.message || "";
+            const urlMatch = msg.match(/https?:[^\s)]+/g);
+            if (urlMatch) {
+              for (const u of urlMatch) {
+                if (u.toLowerCase().endsWith(".mp4") || u.toLowerCase().includes("video")) videos.push(u);
+                if (u.toLowerCase().endsWith(".mp3") || u.toLowerCase().includes("audio")) audios.push(u);
+              }
+            }
+          }
+        }
+        setDebugMap((m) => ({ ...m, [epId]: { ...(m[epId] || { open: true, loading: false, videos: [], audios: [] }), loading: false, videos, audios } }));
+      } catch {
+        setDebugMap((m) => ({ ...m, [epId]: { ...(m[epId] || { open: true, loading: false, videos: [], audios: [] }), loading: false } }));
+      }
+    }
+  }
   
   // Show loading state
   if (status === "loading" || loading) {
@@ -259,6 +289,15 @@ export default function EpisodesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </a>
+                    <button
+                      onClick={() => toggleDebug(ep.id)}
+                      className="btn-ghost p-2 hover:bg-[#222222] rounded-lg"
+                      title="Show generated files"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
                 
@@ -280,6 +319,43 @@ export default function EpisodesPage() {
                         <source src={ep.audioUrl} type="audio/mpeg" />
                       </audio>
                     )}
+                  </div>
+                )}
+
+                {debugMap[ep.id]?.open && (
+                  <div className="mt-3 bg-[#1f1f1f] border border-[#333] rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold text-white">Generated Files (debug)</div>
+                      {debugMap[ep.id]?.loading && <div className="text-xs text-[#999]">Loading...</div>}
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-[#cccccc] mb-1">Part Videos</div>
+                        <ul className="space-y-1">
+                          {(debugMap[ep.id]?.videos || []).map((u, i) => (
+                            <li key={`v-${i}`}>
+                              <a className="text-[#00c8c8] hover:underline break-all" href={u} target="_blank" rel="noreferrer">{u}</a>
+                            </li>
+                          ))}
+                          {(!debugMap[ep.id]?.videos || debugMap[ep.id]?.videos.length === 0) && (
+                            <li className="text-[#777]">No videos found</li>
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <div className="text-[#cccccc] mb-1">Part Audios</div>
+                        <ul className="space-y-1">
+                          {(debugMap[ep.id]?.audios || []).map((u, i) => (
+                            <li key={`a-${i}`}>
+                              <a className="text-[#00c8c8] hover:underline break-all" href={u} target="_blank" rel="noreferrer">{u}</a>
+                            </li>
+                          ))}
+                          {(!debugMap[ep.id]?.audios || debugMap[ep.id]?.audios.length === 0) && (
+                            <li className="text-[#777]">No audios found</li>
+                          )}
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                 )}
                 
