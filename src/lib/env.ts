@@ -49,6 +49,9 @@ const envSchema = z.object({
 
   // FAL
   FAL_KEY: z.string().optional(),
+
+  // External FFmpeg merge service
+  FFMPEG_API_KEY: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

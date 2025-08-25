@@ -28,6 +28,7 @@ export async function generateScript(raw: string, opts: {
     estimated_wpm: number;
     speaker_names?: { A: string; B: string };
     turns?: { speaker: "A" | "B"; text: string }[];
+    parts20s?: Record<string, string>;
   };
 }
 

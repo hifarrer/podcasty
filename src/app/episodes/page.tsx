@@ -12,6 +12,8 @@ interface Episode {
   targetMinutes?: number;
   mode?: string;
   audioUrl?: string;
+  videoUrl?: string;
+  coverUrl?: string;
 }
 
 function getStatusColor(status: string) {
@@ -224,6 +226,18 @@ export default function EpisodesPage() {
                   </div>
                   
                   <div className="flex items-center gap-2">
+                    {ep.videoUrl && (
+                      <a
+                        href={ep.videoUrl}
+                        download
+                        className="btn-ghost p-2 hover:bg-[#222222] rounded-lg"
+                        title="Download Video"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </a>
+                    )}
                     {ep.audioUrl && (
                       <a 
                         href={ep.audioUrl} 
@@ -248,11 +262,24 @@ export default function EpisodesPage() {
                   </div>
                 </div>
                 
-                {ep.audioUrl && (
-                  <div className="bg-[#2a2a2a] rounded-lg p-4">
-                    <audio controls className="w-full" preload="metadata">
-                      <source src={ep.audioUrl} type="audio/mpeg" />
-                    </audio>
+                {(ep.videoUrl || ep.audioUrl) && (
+                  <div className="bg-[#2a2a2a] rounded-lg p-4 space-y-4">
+                    {ep.videoUrl && (
+                      <video
+                        key={`${ep.id}-video`}
+                        controls
+                        className="w-full"
+                        poster={ep.coverUrl || undefined}
+                        preload="metadata"
+                      >
+                        <source src={ep.videoUrl} />
+                      </video>
+                    )}
+                    {ep.audioUrl && (
+                      <audio key={`${ep.id}-audio`} controls className="w-full" preload="metadata">
+                        <source src={ep.audioUrl} type="audio/mpeg" />
+                      </audio>
+                    )}
                   </div>
                 )}
                 
