@@ -35,6 +35,7 @@ export default function CreateEpisodePage() {
   const [status, setStatus] = useState<string | null>(null);
   const [episode, setEpisode] = useState<Episode | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const lastStatusRef = useRef<string | null>(null);
   const { data: session, status: sessionStatus } = useSession();
 
   // Character images
@@ -69,14 +70,16 @@ export default function CreateEpisodePage() {
     if (pollRef.current) clearInterval(pollRef.current);
     const poll = async () => {
       try {
-        console.log("Polling status for", createdId, new Date().toISOString());
         const res = await fetch(`/api/episodes/${createdId}/status?ts=${Date.now()}`, { 
           cache: "no-store",
           credentials: "include"
         });
         const data = await res.json();
-        console.log("Status response", data);
         if (!res.ok) throw new Error(data.error || "Status error");
+        if (data.status !== lastStatusRef.current) {
+          console.log("Status changed", { status: data.status, episodeId: createdId });
+          lastStatusRef.current = data.status;
+        }
         setStatus(data.status);
         setEpisode(data.episode);
         if (data.status === "PUBLISHED" || data.status === "FAILED") {
