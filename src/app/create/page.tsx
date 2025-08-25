@@ -680,7 +680,7 @@ export default function CreateEpisodePage() {
                           console.log("[FAL] Status response", { url: statusUrl, status: s.status, body: sd });
                         }
                         if (sd?.status === "COMPLETED" || sd?.status === "completed") {
-                          const resultUrl = `/api/fal/imagen4/requests/${encodeURIComponent(reqId)}`;
+                          const resultUrl = `/api/fal/imagen4/requests/${encodeURIComponent(reqId)}?save=1`;
                           console.log("[FAL] Fetching result", { url: resultUrl });
                           const rr = await fetch(resultUrl, { credentials: "include" });
                           const rd = await rr.json();
