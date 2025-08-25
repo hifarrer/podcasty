@@ -22,7 +22,7 @@ export default function CreateEpisodePage() {
   const [uploadKey, setUploadKey] = useState("");
   const [promptText, setPromptText] = useState("");
   const [mode, setMode] = useState<Mode>("SUMMARY");
-  const [targetMinutes, setTargetMinutes] = useState(2);
+  const [targetMinutes, setTargetMinutes] = useState(1);
   const [includeIntro, setIncludeIntro] = useState(true);
   const [includeOutro, setIncludeOutro] = useState(true);
   const [chaptersEnabled, setChaptersEnabled] = useState(true);
@@ -628,7 +628,10 @@ export default function CreateEpisodePage() {
                         const statusUrl = `/api/fal/imagen4/requests/${encodeURIComponent(reqId)}/status`;
                         const s = await fetch(statusUrl, { credentials: "include" });
                         const sd = await s.json();
-                        if (i === 0 || sd?.status === "COMPLETED" || sd?.status === "completed") {
+                        if (i === 0) {
+                          console.log("[FAL] Status polling started", { url: statusUrl });
+                        }
+                        if (sd?.status === "COMPLETED" || sd?.status === "completed") {
                           console.log("[FAL] Status response", { url: statusUrl, status: s.status, body: sd });
                         }
                         if (sd?.status === "COMPLETED" || sd?.status === "completed") {

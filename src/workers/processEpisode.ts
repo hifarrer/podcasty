@@ -76,7 +76,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
     await prisma.episode.update({ where: { id: episodeId }, data: { status: "SYNTHESIZING" as any } });
     // eslint-disable-next-line no-console
     console.log(`[worker:fallback] Synthesize TTS`);
-    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_started", message: "TTS synthesis started" } });
+    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_started", message: "TTS synthesis started (full)" } });
     const voiceA = (Array.isArray(ep.voicesJson) && (ep.voicesJson as any[])[0]) ? (ep.voicesJson as any[])[0] : ep.voice;
     const voiceB = (Array.isArray(ep.voicesJson) && (ep.voicesJson as any[])[1]) ? (ep.voicesJson as any[])[1] : undefined;
     const useTwoVoices = (ep.speakers || 1) > 1 && voiceA && voiceB;
@@ -110,23 +110,23 @@ export async function processEpisode(episodeId: string): Promise<void> {
         const idx = i + 1;
         const fname = `ep_${episodeId}_part${idx}`;
         const text = parts20s[i];
-        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_start", message: `Synth part ${idx}` } });
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_start", message: `Synth part ${idx} (${fname}.mp3)` } });
         // Synthesize each part as single-voice using voiceA
         const partBuf = await synthesizeSsml(text, (Array.isArray(ep.voicesJson) && (ep.voicesJson as any[])[0]) ? (ep.voicesJson as any[])[0] : ep.voice);
         const partMp3 = await wavToMp3Loudnorm(partBuf, "mp3");
         const upA = await uploadBuffer({ buffer: partMp3, contentType: "audio/mpeg", ext: ".mp3", prefix: episodePrefix });
         partAudioUrls.push(upA.url.startsWith("http") ? upA.url : `${base}${upA.url}`);
-        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_done", message: `Part ${idx} audio ${upA.url}` } });
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_part_done", message: `Part ${idx} audio ready (${fname}.mp3) -> ${upA.url}` } });
 
         // Lipsync per-part if cover image available
         if (env.FAL_KEY && (ep.coverUrl || ep?.coverUrl)) {
-          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_part_start", message: `Lipsync part ${idx}` } });
+          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_part_start", message: `Lipsync part ${idx} (${fname}.mp4)` } });
           let imageUrl = ep.coverUrl || "";
           if (imageUrl && !imageUrl.startsWith("http")) imageUrl = `${base}${imageUrl}`;
           const submit = await fetch("https://queue.fal.run/fal-ai/infinitalk", {
             method: "POST",
             headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ image_url: imageUrl, audio_url: partAudioUrls[partAudioUrls.length - 1], prompt: "A realistic podcast" }),
+            body: JSON.stringify({ image_url: imageUrl, audio_url: partAudioUrls[partAudioUrls.length - 1], prompt: "A realistic podcast", num_frames: 610 }),
           });
           const submitData = await submit.json();
           const requestId = submitData?.request_id;
@@ -151,7 +151,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
                     const ext = contentType.includes("webm") ? ".webm" : ".mp4";
                     const upV = await uploadBuffer({ buffer: buf, contentType, ext, prefix: episodePrefix });
                     partVideoUrls.push(upV.url.startsWith("http") ? upV.url : `${base}${upV.url}`);
-                    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_part_done", message: `Part ${idx} video ${upV.url}` } });
+                    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_part_done", message: `Part ${idx} video ready (${fname}.mp4) -> ${upV.url}` } });
                   }
                 }
                 break;
@@ -211,7 +211,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
         const submit = await fetch("https://queue.fal.run/fal-ai/infinitalk", {
           method: "POST",
           headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ image_url: imageUrl, audio_url: audioUrl, prompt: "A realistic podcast" }),
+          body: JSON.stringify({ image_url: imageUrl, audio_url: audioUrl, prompt: "A realistic podcast", num_frames: 610 }),
         });
         const submitData = await submit.json();
         const requestId = submitData?.request_id;

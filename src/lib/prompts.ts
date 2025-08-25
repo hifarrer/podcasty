@@ -12,7 +12,7 @@ export const SCRIPT_WRITER_PROMPT = (
 ) => `You are a podcast scriptwriter. Transform the provided content into a structured podcast script.
 - Output SSML suitable for TTS.
 - Tone/style: ${opts.style}; Language: ${opts.language}.
-- Mode: ${opts.mode}. ${opts.mode === "SUMMARY" ? `Aim for ~${opts.targetMinutes || 8} minutes.` : ""}
+- Mode: ${opts.mode}. ${opts.mode === "SUMMARY" ? `Aim for ~${opts.targetMinutes || 1} minutes.` : ""}
 - Structure:
   <intro hook>, <context>, <sectioned narrative with transitions>, <clear chapter headings>, <outro>.
 - Use <break time="xxxms"/> for pacing; avoid overlong sentences.
