@@ -64,16 +64,24 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         const uploaded = await uploadBuffer({ buffer: buf, contentType, ext, prefix: "media" });
         const canSaveToDb = !!(prisma as any)?.media?.create;
         if (userId && canSaveToDb) {
-          const m = await prisma.media.create({ data: { userId, type: "image", url: uploaded.url, key: uploaded.key } });
-          return NextResponse.json({ data, saved: { url: m.url, id: m.id } }, { status: 200 });
+          try {
+            const m = await prisma.media.create({ data: { userId, type: "image", url: uploaded.url, key: uploaded.key } });
+            return NextResponse.json({ data, saved: { url: m.url, id: m.id } }, { status: 200 });
+          } catch (dbErr: any) {
+            return NextResponse.json({ data, saved: { url: uploaded.url, id: "anon" }, note: "db_save_failed" }, { status: 200 });
+          }
         }
         return NextResponse.json({ data, saved: { url: uploaded.url, id: "anon" } }, { status: 200 });
       } catch (e: any) {
         // Fallback: store external URL directly if download/upload fails
         const canSaveToDb = !!(prisma as any)?.media?.create;
         if (userId && canSaveToDb) {
-          const m = await prisma.media.create({ data: { userId, type: "image", url: imageUrl, key: null } });
-          return NextResponse.json({ data, saved: { url: m.url, id: m.id }, note: "saved_external_url" }, { status: 200 });
+          try {
+            const m = await prisma.media.create({ data: { userId, type: "image", url: imageUrl, key: null } });
+            return NextResponse.json({ data, saved: { url: m.url, id: m.id }, note: "saved_external_url" }, { status: 200 });
+          } catch (dbErr: any) {
+            return NextResponse.json({ data, saved: { url: imageUrl, id: "anon" }, note: "db_save_failed_saved_external_url" }, { status: 200 });
+          }
         }
         return NextResponse.json({ data, saved: { url: imageUrl, id: "anon" }, note: "saved_external_url" }, { status: 200 });
       }
