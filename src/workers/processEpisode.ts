@@ -172,7 +172,9 @@ export async function processEpisode(episodeId: string): Promise<void> {
               await prisma.episode.update({ where: { id: episodeId }, data: { errorMessage: "VIDEO_GENERATION_FAILED" } });
               break;
             }
-            const videoUrlExternal = wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null;
+            const videoUrlExternal = (Array.isArray(wsResult?.outputs) && wsResult.outputs[0])
+              ? wsResult.outputs[0]
+              : (wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
             if (videoUrlExternal) {
               const r = await fetch(videoUrlExternal);
               if (r.ok) {

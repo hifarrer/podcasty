@@ -798,7 +798,7 @@ export default function CreateEpisodePage() {
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#f59e0b]"></div>
                         <div>
                           <div className="font-medium">Audio Complete! Generating video...</div>
-                          <div className="text-sm mt-1">Video is still generating, please be patient...</div>
+                          <div className="text-sm mt-1">Video is still generating, please be patient. It could take up to 15 minutes to generate.</div>
                         </div>
                       </div>
                     )}
