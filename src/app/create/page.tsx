@@ -36,6 +36,7 @@ export default function CreateEpisodePage() {
   const [episode, setEpisode] = useState<Episode | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const lastStatusRef = useRef<string | null>(null);
+  const pollMsRef = useRef<number>(3000);
   const { data: session, status: sessionStatus } = useSession();
 
   // Character images
@@ -82,17 +83,24 @@ export default function CreateEpisodePage() {
         }
         setStatus(data.status);
         setEpisode(data.episode);
-        if (data.status === "PUBLISHED" || data.status === "FAILED") {
+        if (data.status === "FAILED" || (data.status === "PUBLISHED" && data.episode?.videoUrl)) {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
+        } else if (data.status === "PUBLISHED" && !data.episode?.videoUrl) {
+          if (pollMsRef.current !== 10000) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollMsRef.current = 10000;
+            pollRef.current = setInterval(poll, pollMsRef.current);
+          }
         }
       } catch (e) {
         // keep polling on transient failures
       }
     };
-    // kick immediately, then every 3s
+    // kick immediately, then every 3s (can change to 10s while waiting for video)
     poll();
-    pollRef.current = setInterval(poll, 3000);
+    pollMsRef.current = 3000;
+    pollRef.current = setInterval(poll, pollMsRef.current);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
@@ -672,7 +680,17 @@ export default function CreateEpisodePage() {
                     } finally {
                       setPromptLoading(false);
                     }
-                  }}>{promptLoading ? "Generating..." : "Generate"}</button>
+                  }}>{promptLoading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating...
+                    </span>
+                  ) : (
+                    "Generate"
+                  )}</button>
                   {promptGeneratedUrl && (
                     <button className="btn-secondary" onClick={() => { setPromptGeneratedUrl(""); }}>Regenerate</button>
                   )}
@@ -739,10 +757,20 @@ export default function CreateEpisodePage() {
 
                 {status === "PUBLISHED" && episode && (
                   <div className="space-y-4">
-                    <div className="text-[#66cc66] bg-[#66cc66]/10 border border-[#66cc66]/20 rounded-lg p-4">
-                      <div className="font-medium">Episode Complete!</div>
-                      <div className="text-sm mt-1">Your podcast is ready to listen.</div>
-                    </div>
+                    {episode.videoUrl ? (
+                      <div className="text-[#66cc66] bg-[#66cc66]/10 border border-[#66cc66]/20 rounded-lg p-4">
+                        <div className="font-medium">Episode Complete!</div>
+                        <div className="text-sm mt-1">Your podcast is ready to listen and watch.</div>
+                      </div>
+                    ) : (
+                      <div className="text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-lg p-4 flex items-center gap-3">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#f59e0b]"></div>
+                        <div>
+                          <div className="font-medium">Audio Complete! Generating video...</div>
+                          <div className="text-sm mt-1">Video is still generating, please be patient...</div>
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="space-y-3">
                       <div className="text-lg font-semibold text-white">{episode.title || "Episode"}</div>
