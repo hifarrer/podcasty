@@ -52,6 +52,9 @@ const envSchema = z.object({
 
   // External FFmpeg merge service
   FFMPEG_API_KEY: z.string().optional(),
+
+  // Wavespeed lipsync
+  WAVESPEED_KEY: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
