@@ -72,6 +72,7 @@ export default function EpisodesPage() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
   const [debugMap, setDebugMap] = useState<Record<string, { open: boolean; loading: boolean; videos: string[]; audios: string[] }>>({});
+  const [retrievingVideos, setRetrievingVideos] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -131,6 +132,37 @@ export default function EpisodesPage() {
       } catch {
         setDebugMap((m) => ({ ...m, [epId]: { ...(m[epId] || { open: true, loading: false, videos: [], audios: [] }), loading: false } }));
       }
+    }
+  }
+
+  async function retrieveVideoFromWavespeed(epId: string) {
+    setRetrievingVideos(prev => ({ ...prev, [epId]: true }));
+    try {
+      const response = await fetch(`/api/episodes/${epId}/retrieve-video`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          // Refresh the episodes list to show the new video
+          await fetchEpisodes();
+          alert('Video retrieved successfully!');
+        } else {
+          alert(`Failed to retrieve video: ${result.error || 'Unknown error'}`);
+        }
+      } else {
+        alert('Failed to retrieve video. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error retrieving video:', error);
+      alert('Error retrieving video. Please try again.');
+    } finally {
+      setRetrievingVideos(prev => ({ ...prev, [epId]: false }));
     }
   }
   
@@ -298,6 +330,24 @@ export default function EpisodesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                       </svg>
                     </button>
+                    {ep.status === "PUBLISHED" && !ep.videoUrl && ep.audioUrl && (
+                      <button
+                        onClick={() => retrieveVideoFromWavespeed(ep.id)}
+                        disabled={retrievingVideos[ep.id]}
+                        className="btn-ghost p-2 hover:bg-[#222222] rounded-lg disabled:opacity-50"
+                        title="Retrieve video from Wavespeed (debug)"
+                      >
+                        {retrievingVideos[ep.id] ? (
+                          <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
                 
