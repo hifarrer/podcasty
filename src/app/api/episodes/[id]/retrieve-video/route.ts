@@ -65,13 +65,41 @@ export async function POST(
     console.log("[DEBUG] Event logs:", episode.eventLogs.map(log => ({ type: log.type, message: log.message })));
     
     let wavespeedId: string | null = null;
+    
+    // First, try to find any log that mentions wavespeed
+    const wavespeedLogs = episode.eventLogs.filter(log => 
+      log.type.includes('wavespeed') || 
+      log.message.toLowerCase().includes('wavespeed')
+    );
+    
+    console.log("[DEBUG] Found wavespeed-related logs:", wavespeedLogs);
+    
+    // Try multiple patterns to extract the request ID
     for (const log of episode.eventLogs) {
-      if (log.type === "wavespeed_start" || log.type === "wavespeed_polling") {
-        // Try to extract request ID from message
-        const match = log.message.match(/Starting Wavespeed polling for ([a-f0-9-]+)/);
+      // Pattern 1: "Starting Wavespeed polling for [id]"
+      let match = log.message.match(/Starting Wavespeed polling for ([a-f0-9-]+)/);
+      if (match) {
+        wavespeedId = match[1];
+        console.log("[DEBUG] Found Wavespeed ID (pattern 1):", { type: log.type, message: log.message, extractedId: wavespeedId });
+        break;
+      }
+      
+      // Pattern 2: Look for any UUID-like string in wavespeed logs
+      if (log.type.includes('wavespeed') || log.message.toLowerCase().includes('wavespeed')) {
+        match = log.message.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
         if (match) {
           wavespeedId = match[1];
-          console.log("[DEBUG] Found Wavespeed ID in log:", { type: log.type, message: log.message, extractedId: wavespeedId });
+          console.log("[DEBUG] Found Wavespeed ID (pattern 2):", { type: log.type, message: log.message, extractedId: wavespeedId });
+          break;
+        }
+      }
+      
+      // Pattern 3: Look for any 32+ character alphanumeric string in wavespeed logs
+      if (log.type.includes('wavespeed') || log.message.toLowerCase().includes('wavespeed')) {
+        match = log.message.match(/([a-f0-9]{32,})/);
+        if (match) {
+          wavespeedId = match[1];
+          console.log("[DEBUG] Found Wavespeed ID (pattern 3):", { type: log.type, message: log.message, extractedId: wavespeedId });
           break;
         }
       }
@@ -79,6 +107,8 @@ export async function POST(
 
     if (!wavespeedId) {
       console.log("[DEBUG] No Wavespeed request ID found in logs");
+      console.log("[DEBUG] All event log types:", [...new Set(episode.eventLogs.map(log => log.type))]);
+      console.log("[DEBUG] All event log messages:", episode.eventLogs.map(log => log.message));
       return NextResponse.json({ error: "No Wavespeed request ID found in logs" }, { status: 404 });
     }
 
