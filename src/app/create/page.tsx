@@ -88,6 +88,13 @@ export default function CreateEpisodePage() {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
         } else if (data.status === "PUBLISHED" && !data.episode?.videoUrl) {
+          // if backend marked a video generation error, stop and show failed
+          if (data.episode?.errorMessage === "VIDEO_GENERATION_FAILED") {
+            setStatus("FAILED");
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            return;
+          }
           if (pollMsRef.current !== 10000) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollMsRef.current = 10000;
@@ -611,7 +618,7 @@ export default function CreateEpisodePage() {
                 </div>
                 {galleryTab === "MY" ? (
                   gallery.length === 0 ? (
-                    <div className="text-[#999]">Your gallery is empty. Upload or generate an image first.</div>
+                    <div className="text-[#999]">You have not generated any images yet, you can try to generate your own or select from the Public Images.</div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                       {gallery.filter(g => g.type === "image").map(g => (

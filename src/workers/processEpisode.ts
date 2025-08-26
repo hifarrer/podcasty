@@ -167,6 +167,11 @@ export async function processEpisode(episodeId: string): Promise<void> {
               headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` },
             });
             const wsResult = await wsRes.json();
+            if (wsResult?.status === "failed" || wsResult?.error) {
+              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_failed", message: wsResult?.error || "Wavespeed failed" } });
+              await prisma.episode.update({ where: { id: episodeId }, data: { errorMessage: "VIDEO_GENERATION_FAILED" } });
+              break;
+            }
             const videoUrlExternal = wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null;
             if (videoUrlExternal) {
               const r = await fetch(videoUrlExternal);
@@ -181,9 +186,11 @@ export async function processEpisode(episodeId: string): Promise<void> {
           }
         } else {
           await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_error", message: `No request id from Wavespeed` } });
+          await prisma.episode.update({ where: { id: episodeId }, data: { errorMessage: "VIDEO_GENERATION_FAILED" } });
         }
       } catch (e: any) {
         await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_error", message: e?.message || "Wavespeed submit failed" } });
+        await prisma.episode.update({ where: { id: episodeId }, data: { errorMessage: "VIDEO_GENERATION_FAILED" } });
       }
     }
 
