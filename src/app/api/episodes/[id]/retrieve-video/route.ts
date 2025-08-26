@@ -76,17 +76,17 @@ export async function POST(
     
     // Try multiple patterns to extract the request ID
     for (const log of episode.eventLogs) {
-      // Pattern 1: "Starting Wavespeed polling for [id]"
-      let match = log.message.match(/Starting Wavespeed polling for ([a-f0-9-]+)/);
+      // Pattern 1: "Starting Wavespeed polling for [id]" - this is the expected format
+      let match = log.message.match(/Starting Wavespeed polling for ([a-f0-9]+)/);
       if (match) {
         wavespeedId = match[1];
         console.log("[DEBUG] Found Wavespeed ID (pattern 1):", { type: log.type, message: log.message, extractedId: wavespeedId });
         break;
       }
       
-      // Pattern 2: Look for any UUID-like string in wavespeed logs
+      // Pattern 2: Look for any 32-character alphanumeric string in wavespeed logs (Wavespeed IDs are 32 chars)
       if (log.type.includes('wavespeed') || log.message.toLowerCase().includes('wavespeed')) {
-        match = log.message.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+        match = log.message.match(/([a-f0-9]{32})/);
         if (match) {
           wavespeedId = match[1];
           console.log("[DEBUG] Found Wavespeed ID (pattern 2):", { type: log.type, message: log.message, extractedId: wavespeedId });
@@ -94,12 +94,22 @@ export async function POST(
         }
       }
       
-      // Pattern 3: Look for any 32+ character alphanumeric string in wavespeed logs
+      // Pattern 3: Look for any UUID-like string in wavespeed logs
+      if (log.type.includes('wavespeed') || log.message.toLowerCase().includes('wavespeed')) {
+        match = log.message.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+        if (match) {
+          wavespeedId = match[1];
+          console.log("[DEBUG] Found Wavespeed ID (pattern 3):", { type: log.type, message: log.message, extractedId: wavespeedId });
+          break;
+        }
+      }
+      
+      // Pattern 4: Look for any 32+ character alphanumeric string in wavespeed logs
       if (log.type.includes('wavespeed') || log.message.toLowerCase().includes('wavespeed')) {
         match = log.message.match(/([a-f0-9]{32,})/);
         if (match) {
           wavespeedId = match[1];
-          console.log("[DEBUG] Found Wavespeed ID (pattern 3):", { type: log.type, message: log.message, extractedId: wavespeedId });
+          console.log("[DEBUG] Found Wavespeed ID (pattern 4):", { type: log.type, message: log.message, extractedId: wavespeedId });
           break;
         }
       }
