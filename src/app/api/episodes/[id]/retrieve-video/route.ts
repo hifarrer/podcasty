@@ -107,7 +107,7 @@ export async function POST(
 
     if (!wavespeedId) {
       console.log("[DEBUG] No Wavespeed request ID found in logs");
-      console.log("[DEBUG] All event log types:", [...new Set(episode.eventLogs.map(log => log.type))]);
+      console.log("[DEBUG] All event log types:", Array.from(new Set(episode.eventLogs.map(log => log.type))));
       console.log("[DEBUG] All event log messages:", episode.eventLogs.map(log => log.message));
       return NextResponse.json({ error: "No Wavespeed request ID found in logs" }, { status: 404 });
     }
