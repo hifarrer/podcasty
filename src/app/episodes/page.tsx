@@ -136,9 +136,13 @@ export default function EpisodesPage() {
   }
 
   async function retrieveVideoFromWavespeed(epId: string) {
+    console.log("[DEBUG] Starting video retrieval for episode:", epId);
     setRetrievingVideos(prev => ({ ...prev, [epId]: true }));
     try {
-      const response = await fetch(`/api/episodes/${epId}/retrieve-video`, {
+      const url = `/api/episodes/${epId}/retrieve-video`;
+      console.log("[DEBUG] Making request to:", url);
+      
+      const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -146,20 +150,29 @@ export default function EpisodesPage() {
         }
       });
       
+      console.log("[DEBUG] Response status:", response.status);
+      console.log("[DEBUG] Response headers:", Object.fromEntries(response.headers.entries()));
+      
       if (response.ok) {
         const result = await response.json();
+        console.log("[DEBUG] Response body:", result);
+        
         if (result.success) {
+          console.log("[DEBUG] Video retrieval successful, refreshing episodes list");
           // Refresh the episodes list to show the new video
           await fetchEpisodes();
           alert('Video retrieved successfully!');
         } else {
+          console.log("[DEBUG] Video retrieval failed:", result.error);
           alert(`Failed to retrieve video: ${result.error || 'Unknown error'}`);
         }
       } else {
+        const errorText = await response.text();
+        console.log("[DEBUG] Response not ok, error text:", errorText);
         alert('Failed to retrieve video. Please try again.');
       }
     } catch (error) {
-      console.error('Error retrieving video:', error);
+      console.error('[DEBUG] Error retrieving video:', error);
       alert('Error retrieving video. Please try again.');
     } finally {
       setRetrievingVideos(prev => ({ ...prev, [epId]: false }));

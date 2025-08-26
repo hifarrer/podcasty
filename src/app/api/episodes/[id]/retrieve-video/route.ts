@@ -10,11 +10,16 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log("[DEBUG] Retrieve video request started for episode:", params.id);
+    
     const session = await getServerSession(authOptions as any);
     const userId = (session as any)?.user?.id;
     if (!userId) {
+      console.log("[DEBUG] Unauthorized - no user ID");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    console.log("[DEBUG] User ID:", userId);
 
     const episodeId = params.id;
     const episode = await prisma.episode.findUnique({
@@ -23,26 +28,42 @@ export async function POST(
     });
 
     if (!episode) {
+      console.log("[DEBUG] Episode not found");
       return NextResponse.json({ error: "Episode not found" }, { status: 404 });
     }
 
+    console.log("[DEBUG] Episode found:", {
+      id: episode.id,
+      userId: episode.userId,
+      hasVideo: !!episode.videoUrl,
+      hasAudio: !!episode.audioUrl,
+      eventLogsCount: episode.eventLogs.length
+    });
+
     if (episode.userId !== userId) {
+      console.log("[DEBUG] Unauthorized - episode belongs to different user");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (episode.videoUrl) {
+      console.log("[DEBUG] Episode already has video:", episode.videoUrl);
       return NextResponse.json({ error: "Episode already has a video" }, { status: 400 });
     }
 
     if (!episode.audioUrl) {
+      console.log("[DEBUG] Episode has no audio");
       return NextResponse.json({ error: "Episode has no audio" }, { status: 400 });
     }
 
     if (!env.WAVESPEED_KEY) {
+      console.log("[DEBUG] WAVESPEED_KEY not configured");
       return NextResponse.json({ error: "WAVESPEED_KEY not configured" }, { status: 500 });
     }
 
     // Look for Wavespeed request ID in event logs
+    console.log("[DEBUG] Searching for Wavespeed request ID in event logs...");
+    console.log("[DEBUG] Event logs:", episode.eventLogs.map(log => ({ type: log.type, message: log.message })));
+    
     let wavespeedId: string | null = null;
     for (const log of episode.eventLogs) {
       if (log.type === "wavespeed_start" || log.type === "wavespeed_polling") {
@@ -50,14 +71,18 @@ export async function POST(
         const match = log.message.match(/Starting Wavespeed polling for ([a-f0-9-]+)/);
         if (match) {
           wavespeedId = match[1];
+          console.log("[DEBUG] Found Wavespeed ID in log:", { type: log.type, message: log.message, extractedId: wavespeedId });
           break;
         }
       }
     }
 
     if (!wavespeedId) {
+      console.log("[DEBUG] No Wavespeed request ID found in logs");
       return NextResponse.json({ error: "No Wavespeed request ID found in logs" }, { status: 404 });
     }
+
+    console.log("[DEBUG] Using Wavespeed request ID:", wavespeedId);
 
     // Poll Wavespeed for the result
     await prisma.eventLog.create({ 
@@ -72,11 +97,17 @@ export async function POST(
     for (let i = 0; i < 30; i++) { // Try for 5 minutes
       await new Promise((r) => setTimeout(r, 10_000));
       
-      const wsRes = await fetch(`https://api.wavespeed.ai/api/v3/predictions/${encodeURIComponent(wavespeedId)}/result`, {
+      const apiUrl = `https://api.wavespeed.ai/api/v3/predictions/${encodeURIComponent(wavespeedId)}/result`;
+      console.log(`[DEBUG] Poll ${i+1}/30 - Making API call to:`, apiUrl);
+      console.log(`[DEBUG] Poll ${i+1}/30 - Request headers:`, { Authorization: `Bearer ${env.WAVESPEED_KEY.substring(0, 10)}...` });
+      
+      const wsRes = await fetch(apiUrl, {
         headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` },
       });
       
+      console.log(`[DEBUG] Poll ${i+1}/30 - Response status:`, wsRes.status);
       const wsResult = await wsRes.json();
+      console.log(`[DEBUG] Poll ${i+1}/30 - Response body:`, wsResult);
       
       await prisma.eventLog.create({ 
         data: { 
@@ -88,6 +119,7 @@ export async function POST(
       });
 
       if (wsResult?.status === "failed" || wsResult?.error) {
+        console.log(`[DEBUG] Poll ${i+1}/30 - Wavespeed failed:`, wsResult?.error || "Unknown error");
         await prisma.eventLog.create({ 
           data: { 
             episodeId, 
@@ -105,6 +137,8 @@ export async function POST(
       const videoUrlExternal = (Array.isArray(wsResult?.outputs) && wsResult.outputs[0])
         ? wsResult.outputs[0]
         : (wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
+
+      console.log(`[DEBUG] Poll ${i+1}/30 - Extracted video URL:`, videoUrlExternal);
 
       if (videoUrlExternal) {
         await prisma.eventLog.create({ 
@@ -166,6 +200,7 @@ export async function POST(
       }
     }
 
+    console.log("[DEBUG] Video retrieval timed out after 5 minutes");
     await prisma.eventLog.create({ 
       data: { 
         episodeId, 
@@ -181,7 +216,8 @@ export async function POST(
     });
 
   } catch (error: any) {
-    console.error("Error retrieving video:", error);
+    console.error("[DEBUG] Error retrieving video:", error);
+    console.error("[DEBUG] Error stack:", error.stack);
     return NextResponse.json({ 
       success: false, 
       error: error.message || "Unknown error occurred" 
