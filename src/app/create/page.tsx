@@ -44,6 +44,7 @@ export default function CreateEpisodePage() {
   const [gallery, setGallery] = useState<{ id: string; url: string; type: string }[]>([]);
   const [showGalleryFor, setShowGalleryFor] = useState<"A" | "B" | null>(null);
   const [showPromptFor, setShowPromptFor] = useState<"A" | "B" | null>(null);
+  const [galleryTab, setGalleryTab] = useState<"MY" | "PUBLIC">("MY");
   const fileInputARef = useRef<HTMLInputElement | null>(null);
   const [promptTextModal, setPromptTextModal] = useState<string>("");
   const [promptLoading, setPromptLoading] = useState(false);
@@ -594,18 +595,48 @@ export default function CreateEpisodePage() {
                   <h3 className="text-xl text-white font-semibold">Select from Gallery</h3>
                   <button className="text-[#cccccc] hover:text-white" onClick={() => setShowGalleryFor(null)}>Close</button>
                 </div>
-                {gallery.length === 0 ? (
-                  <div className="text-[#999]">Your gallery is empty. Upload or generate an image first.</div>
+                <div className="mb-4 flex items-center gap-2">
+                  <button
+                    className={`px-3 py-1 rounded ${galleryTab === "MY" ? "bg-[#00c8c8] text-white" : "bg-[#2a2a2a] text-[#cccccc]"}`}
+                    onClick={() => setGalleryTab("MY")}
+                  >
+                    My Images
+                  </button>
+                  <button
+                    className={`px-3 py-1 rounded ${galleryTab === "PUBLIC" ? "bg-[#00c8c8] text-white" : "bg-[#2a2a2a] text-[#cccccc]"}`}
+                    onClick={() => setGalleryTab("PUBLIC")}
+                  >
+                    Public Images
+                  </button>
+                </div>
+                {galleryTab === "MY" ? (
+                  gallery.length === 0 ? (
+                    <div className="text-[#999]">Your gallery is empty. Upload or generate an image first.</div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {gallery.filter(g => g.type === "image").map(g => (
+                        <button key={g.id} type="button" className="block" onClick={() => {
+                          setCharacterA(g.url);
+                          setShowGalleryFor(null);
+                        }}>
+                          <img src={g.url} className="w-full h-32 object-cover rounded border border-[#333]" />
+                        </button>
+                      ))}
+                    </div>
+                  )
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {gallery.filter(g => g.type === "image").map(g => (
-                      <button key={g.id} type="button" className="block" onClick={() => {
-                        setCharacterA(g.url);
-                        setShowGalleryFor(null);
-                      }}>
-                        <img src={g.url} className="w-full h-32 object-cover rounded border border-[#333]" />
-                      </button>
-                    ))}
+                    {Array.from({ length: 14 }).map((_, i) => {
+                      const url = `/assets/images/p${i + 1}.jpg`;
+                      return (
+                        <button key={url} type="button" className="block" onClick={() => {
+                          setCharacterA(url);
+                          setShowGalleryFor(null);
+                        }}>
+                          <img src={url} className="w-full h-32 object-cover rounded border border-[#333]" />
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
