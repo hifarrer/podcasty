@@ -88,13 +88,6 @@ export default function CreateEpisodePage() {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
         } else if (data.status === "PUBLISHED" && !data.episode?.videoUrl) {
-          // if backend marked a video generation error, stop and show failed
-          if (data.episode?.errorMessage === "VIDEO_GENERATION_FAILED") {
-            setStatus("FAILED");
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
-            return;
-          }
           if (pollMsRef.current !== 10000) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollMsRef.current = 10000;
