@@ -84,10 +84,14 @@ export default function CreateEpisodePage() {
         }
         setStatus(data.status);
         setEpisode(data.episode);
-        if (data.status === "FAILED" || (data.status === "PUBLISHED" && data.episode?.videoUrl)) {
+        if (data.status === "FAILED") {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+        } else if (data.status === "PUBLISHED" && data.episode?.videoUrl) {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
         } else if (data.status === "PUBLISHED" && !data.episode?.videoUrl) {
+          // Continue polling for video results every 10 seconds
           if (pollMsRef.current !== 10000) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollMsRef.current = 10000;

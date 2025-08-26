@@ -80,44 +80,13 @@ export async function processEpisode(episodeId: string): Promise<void> {
     const voiceA = (Array.isArray(ep.voicesJson) && (ep.voicesJson as any[])[0]) ? (ep.voicesJson as any[])[0] : ep.voice;
     const voiceB = (Array.isArray(ep.voicesJson) && (ep.voicesJson as any[])[1]) ? (ep.voicesJson as any[])[1] : undefined;
     const useTwoVoices = (ep.speakers || 1) > 1 && voiceA && voiceB;
-    // Enforce targetMinutes by trimming content based on estimated WPM
-    let limitedSsml = script.ssml || "";
+    // Use full script for audio generation - let ElevenLabs handle duration naturally
+    const limitedSsml = script.ssml || "";
     let limitedTurns: { speaker: "A" | "B"; text: string }[] | undefined = undefined;
-    try {
-      const targetMin = ep.targetMinutes || 0;
-      const estWpm = (script as any)?.estimated_wpm || 150;
-      if (targetMin > 0 && estWpm > 0) {
-        const maxWords = Math.max(30, Math.round((estWpm / 60) * (targetMin * 60)));
-        // Build plain text from SSML
-        const plain = (limitedSsml || "").replace(/<[^>]+>/g, " ").replace(/[\t ]+/g, " ").trim();
-        const words = plain.split(/\s+/).filter(Boolean);
-        if (words.length > maxWords) {
-          const trimmed = words.slice(0, maxWords).join(" ");
-          limitedSsml = trimmed; // synthesizeSsml will treat as plain text
-        }
-        // If dialogue turns exist, trim turns cumulatively to maxWords
-        const turns = (script as any)?.turns as { speaker: "A" | "B"; text: string }[] | undefined;
-        if (useTwoVoices && Array.isArray(turns) && turns.length > 0) {
-          let count = 0;
-          const out: { speaker: "A" | "B"; text: string }[] = [];
-          for (const t of turns) {
-            const tWords = (t.text || "").trim().split(/\s+/).filter(Boolean);
-            if (count >= maxWords) break;
-            if (count + tWords.length <= maxWords) {
-              out.push({ speaker: t.speaker, text: t.text });
-              count += tWords.length;
-            } else {
-              const take = Math.max(0, maxWords - count);
-              if (take > 0) out.push({ speaker: t.speaker, text: tWords.slice(0, take).join(" ") });
-              count = maxWords;
-              break;
-            }
-          }
-          limitedTurns = out;
-        }
-        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_limit", message: `Limiting audio to ~${targetMin} min (~${maxWords} words @ ${estWpm} wpm)` } });
-      }
-    } catch {}
+    if (useTwoVoices) {
+      limitedTurns = (script as any)?.turns;
+    }
+    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_full", message: `Using full script for audio generation` } });
 
     const ttsBuffer = useTwoVoices
       ? await synthesizeDialogueAb(
@@ -200,12 +169,14 @@ export async function processEpisode(episodeId: string): Promise<void> {
         const wsData = await wsSubmit.json();
         const wsId = wsData?.id || wsData?.requestId || wsData?.request_id;
         if (wsId) {
+          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_polling", message: `Starting Wavespeed polling for ${wsId}` } });
           for (let i = 0; i < 90; i++) { // ~15 minutes @ 10s
             await new Promise((r) => setTimeout(r, 10_000));
             const wsRes = await fetch(`https://api.wavespeed.ai/api/v3/predictions/${encodeURIComponent(wsId)}/result`, {
               headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` },
             });
             const wsResult = await wsRes.json();
+            await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll", message: `Poll ${i+1}/90: status=${wsResult?.status}, error=${wsResult?.error || 'none'}` } });
             if (wsResult?.status === "failed" || wsResult?.error) {
               await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_failed", message: wsResult?.error || "Wavespeed failed" } });
               await prisma.episode.update({ where: { id: episodeId }, data: { errorMessage: "VIDEO_GENERATION_FAILED" } });
@@ -215,6 +186,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
               ? wsResult.outputs[0]
               : (wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
             if (videoUrlExternal) {
+              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_success", message: `Video found: ${videoUrlExternal}` } });
               // Immediately set external URL so UI can display, then try to mirror to our storage
               await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl: videoUrlExternal } });
               await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_ready", message: `Wavespeed video (external) -> ${videoUrlExternal}` } });
