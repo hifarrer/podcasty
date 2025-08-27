@@ -231,150 +231,205 @@ export async function processEpisode(episodeId: string): Promise<void> {
          }
        }
 
-       // Poll for all video results
-       console.log(`[worker:fallback] Starting to poll for ${videoParts.filter(p => p.status === 'processing').length} video results`);
-       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_polling_started", message: `Starting to poll for video results` } });
+               // Poll for all video results
+        const processingParts = videoParts.filter(p => p.status === 'processing');
+        console.log(`[worker:fallback] Starting to poll for ${processingParts.length} video results`);
+        console.log(`[worker:fallback] Processing parts:`, processingParts.map(p => ({ part: p.partNumber, id: p.wavespeedId })));
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_polling_started", message: `Starting to poll for ${processingParts.length} video results` } });
 
-       const maxPollAttempts = 90; // ~15 minutes @ 10s
-       for (let pollAttempt = 0; pollAttempt < maxPollAttempts; pollAttempt++) {
-         console.log(`[worker:fallback] Poll attempt ${pollAttempt + 1}/${maxPollAttempts}`);
-         
-         let allCompleted = true;
-         let anyFailed = false;
+        const maxPollAttempts = 90; // ~15 minutes @ 10s
+        for (let pollAttempt = 0; pollAttempt < maxPollAttempts; pollAttempt++) {
+          console.log(`[worker:fallback] Poll attempt ${pollAttempt + 1}/${maxPollAttempts}`);
+          
+          let allCompleted = true;
+          let anyFailed = false;
+          let stillProcessing = 0;
 
-         for (const part of videoParts) {
-           if (part.status === 'completed' || part.status === 'failed') continue;
-           
-           if (!part.wavespeedId) {
-             part.status = 'failed';
-             anyFailed = true;
-             continue;
-           }
+          for (const part of videoParts) {
+            if (part.status === 'completed' || part.status === 'failed') {
+              console.log(`[worker:fallback] Part ${part.partNumber} already ${part.status}, skipping`);
+              continue;
+            }
+            
+            if (!part.wavespeedId) {
+              console.log(`[worker:fallback] Part ${part.partNumber} has no wavespeed ID, marking as failed`);
+              part.status = 'failed';
+              anyFailed = true;
+              continue;
+            }
 
-           try {
-             const wsRes = await fetch(`https://api.wavespeed.ai/api/v3/predictions/${encodeURIComponent(part.wavespeedId)}/result`, {
-               headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` },
-             });
+            try {
+              console.log(`[worker:fallback] Polling part ${part.partNumber} with ID: ${part.wavespeedId}`);
+              const wsRes = await fetch(`https://api.wavespeed.ai/api/v3/predictions/${encodeURIComponent(part.wavespeedId)}/result`, {
+                headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` },
+              });
 
-             const wsResult = await wsRes.json();
-             const status = wsResult?.data?.status || wsResult?.status;
-             const error = wsResult?.data?.error || wsResult?.error;
+              const wsResult = await wsRes.json();
+              const status = wsResult?.data?.status || wsResult?.status;
+              const error = wsResult?.data?.error || wsResult?.error;
 
-             console.log(`[worker:fallback] Part ${part.partNumber} status: ${status}, error: ${error || 'none'}`);
-             await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll", message: `Part ${part.partNumber} - Poll ${pollAttempt + 1}: status=${status}, error=${error || 'none'}` } });
+              console.log(`[worker:fallback] Part ${part.partNumber} status: ${status}, error: ${error || 'none'}`);
+              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll", message: `Part ${part.partNumber} - Poll ${pollAttempt + 1}: status=${status}, error=${error || 'none'}` } });
 
-             if (status === "failed" || error) {
-               part.status = 'failed';
-               anyFailed = true;
-               await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_failed", message: `Part ${part.partNumber} failed: ${error || 'Unknown error'}` } });
-             } else if (status === "succeeded") {
-               const outputs = wsResult?.data?.outputs || wsResult?.outputs;
-               const videoUrlExternal = (Array.isArray(outputs) && outputs[0])
-                 ? outputs[0]
-                 : (wsResult?.data?.output?.video || wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
+              if (status === "failed" || error) {
+                console.log(`[worker:fallback] Part ${part.partNumber} failed with status: ${status}, error: ${error}`);
+                part.status = 'failed';
+                anyFailed = true;
+                await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_failed", message: `Part ${part.partNumber} failed: ${error || 'Unknown error'}` } });
+              } else if (status === "succeeded") {
+                console.log(`[worker:fallback] Part ${part.partNumber} succeeded, extracting video URL`);
+                const outputs = wsResult?.data?.outputs || wsResult?.outputs;
+                const videoUrlExternal = (Array.isArray(outputs) && outputs[0])
+                  ? outputs[0]
+                  : (wsResult?.data?.output?.video || wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
 
-               if (videoUrlExternal) {
-                 // Download and upload video to our storage
-                 try {
-                   const r = await fetch(videoUrlExternal);
-                   if (r.ok) {
-                     const buf = Buffer.from(await r.arrayBuffer());
-                                           const upV = await uploadBuffer({ 
+                console.log(`[worker:fallback] Part ${part.partNumber} video URL: ${videoUrlExternal}`);
+
+                if (videoUrlExternal) {
+                  // Download and upload video to our storage
+                  try {
+                    console.log(`[worker:fallback] Downloading part ${part.partNumber} video from: ${videoUrlExternal}`);
+                    const r = await fetch(videoUrlExternal);
+                    console.log(`[worker:fallback] Part ${part.partNumber} download status:`, r.status);
+                    
+                    if (r.ok) {
+                      const buf = Buffer.from(await r.arrayBuffer());
+                      console.log(`[worker:fallback] Part ${part.partNumber} video buffer size:`, buf.length, 'bytes');
+                      
+                      const upV = await uploadBuffer({ 
                         buffer: buf, 
                         contentType: "video/mp4", 
                         ext: ".mp4", 
                         prefix: "videos"
                       });
-                     
-                     part.videoUrl = upV.url;
-                     part.status = 'completed';
-                     
-                     console.log(`[worker:fallback] Part ${part.partNumber} video completed: ${upV.url}`);
-                     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_success", message: `Part ${part.partNumber} video completed: ${upV.url}` } });
-                   }
-                 } catch (downloadError: any) {
-                   console.log(`[worker:fallback] Part ${part.partNumber} download error:`, downloadError.message);
-                   await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_download_error", message: `Part ${part.partNumber} download error: ${downloadError.message}` } });
-                 }
-               }
-             } else {
-               allCompleted = false; // Still processing
-             }
-           } catch (pollError: any) {
-             console.log(`[worker:fallback] Part ${part.partNumber} poll error:`, pollError.message);
-             await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll_error", message: `Part ${part.partNumber} poll error: ${pollError.message}` } });
-           }
-         }
+                      
+                      part.videoUrl = upV.url;
+                      part.status = 'completed';
+                      
+                      console.log(`[worker:fallback] Part ${part.partNumber} video completed and uploaded: ${upV.url}`);
+                      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_success", message: `Part ${part.partNumber} video completed: ${upV.url}` } });
+                    } else {
+                      console.log(`[worker:fallback] Part ${part.partNumber} download failed:`, r.status, r.statusText);
+                      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_download_failed", message: `Part ${part.partNumber} download failed: ${r.status}` } });
+                    }
+                  } catch (downloadError: any) {
+                    console.log(`[worker:fallback] Part ${part.partNumber} download error:`, downloadError.message);
+                    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_download_error", message: `Part ${part.partNumber} download error: ${downloadError.message}` } });
+                  }
+                } else {
+                  console.log(`[worker:fallback] Part ${part.partNumber} succeeded but no video URL found`);
+                  await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_no_url", message: `Part ${part.partNumber} succeeded but no video URL found` } });
+                }
+              } else {
+                console.log(`[worker:fallback] Part ${part.partNumber} still processing (status: ${status})`);
+                stillProcessing++;
+                allCompleted = false; // Still processing
+              }
+            } catch (pollError: any) {
+              console.log(`[worker:fallback] Part ${part.partNumber} poll error:`, pollError.message);
+              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll_error", message: `Part ${part.partNumber} poll error: ${pollError.message}` } });
+            }
+          }
 
-         if (allCompleted) {
-           console.log(`[worker:fallback] All video parts completed`);
-           await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_polling_completed", message: `All video parts completed` } });
-           break;
-         }
+          console.log(`[worker:fallback] Poll ${pollAttempt + 1} summary - All completed: ${allCompleted}, Any failed: ${anyFailed}, Still processing: ${stillProcessing}`);
 
-         if (anyFailed) {
-           console.log(`[worker:fallback] Some video parts failed`);
-           await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_polling_failed", message: `Some video parts failed` } });
-           break;
-         }
+          if (allCompleted) {
+            console.log(`[worker:fallback] All video parts completed successfully`);
+            await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_polling_completed", message: `All video parts completed successfully` } });
+            break;
+          }
 
-         // Wait 10 seconds before next poll
-         await new Promise((r) => setTimeout(r, 10_000));
-       }
+          if (anyFailed) {
+            console.log(`[worker:fallback] Some video parts failed, stopping polling`);
+            await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_polling_failed", message: `Some video parts failed, stopping polling` } });
+            break;
+          }
 
-       // Merge videos using FFMPEG API
-       const completedVideos = videoParts.filter(p => p.status === 'completed' && p.videoUrl);
-       if (completedVideos.length > 0) {
-         console.log(`[worker:fallback] Merging ${completedVideos.length} videos using FFMPEG API`);
-         await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_started", message: `Merging ${completedVideos.length} videos` } });
+          // Wait 10 seconds before next poll
+          console.log(`[worker:fallback] Waiting 10 seconds before next poll...`);
+          await new Promise((r) => setTimeout(r, 10_000));
+        }
 
-         try {
-           const videoUrls = completedVideos.map(p => p.videoUrl!);
-           const audioUrl = videoParts[0]?.audioUrl; // Use first part's audio as reference
+               // Merge videos using FFMPEG API
+        const completedVideos = videoParts.filter(p => p.status === 'completed' && p.videoUrl);
+        console.log(`[worker:fallback] Completed videos for merging:`, completedVideos.map(p => ({ part: p.partNumber, url: p.videoUrl })));
+        
+        if (completedVideos.length > 0) {
+          console.log(`[worker:fallback] Starting FFMPEG merge for ${completedVideos.length} videos`);
+          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_started", message: `Starting FFMPEG merge for ${completedVideos.length} videos` } });
 
-           const ffmpegResponse = await fetch("https://ffmpegapi.net/api/merge_videos", {
-             method: "POST",
-             headers: {
-               "X-API-Key": "ffmpeg_KfTAf98EY9OCuriwBtLT34ZtWZLJtnXX",
-               "Content-Type": "application/json"
-             },
-             body: JSON.stringify({
-               video_urls: videoUrls,
-               audio_url: audioUrl,
-               async: true
-             })
-           });
+          try {
+            const videoUrls = completedVideos.map(p => p.videoUrl!);
+            const audioUrl = videoParts[0]?.audioUrl; // Use first part's audio as reference
+            
+            console.log(`[worker:fallback] FFMPEG request - Video URLs:`, videoUrls);
+            console.log(`[worker:fallback] FFMPEG request - Audio URL:`, audioUrl);
 
-           const ffmpegResult = await ffmpegResponse.json();
-           console.log(`[worker:fallback] FFMPEG merge response:`, ffmpegResult);
+            const ffmpegRequestBody = {
+              video_urls: videoUrls,
+              audio_url: audioUrl,
+              async: true
+            };
+            
+            console.log(`[worker:fallback] FFMPEG request body:`, JSON.stringify(ffmpegRequestBody, null, 2));
 
-           if (ffmpegResult.success && ffmpegResult.download_url) {
-             // Download the merged video
-             const mergedVideoResponse = await fetch(ffmpegResult.download_url);
-             if (mergedVideoResponse.ok) {
-               const mergedVideoBuffer = Buffer.from(await mergedVideoResponse.arrayBuffer());
-                               const uploadedMerged = await uploadBuffer({ 
+            const ffmpegResponse = await fetch("https://ffmpegapi.net/api/merge_videos", {
+              method: "POST",
+              headers: {
+                "X-API-Key": "ffmpeg_KfTAf98EY9OCuriwBtLT34ZtWZLJtnXX",
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify(ffmpegRequestBody)
+            });
+
+            console.log(`[worker:fallback] FFMPEG response status:`, ffmpegResponse.status);
+            console.log(`[worker:fallback] FFMPEG response headers:`, Object.fromEntries(ffmpegResponse.headers.entries()));
+
+            const ffmpegResult = await ffmpegResponse.json();
+            console.log(`[worker:fallback] FFMPEG merge response:`, ffmpegResult);
+
+            if (ffmpegResult.success && ffmpegResult.download_url) {
+              console.log(`[worker:fallback] FFMPEG merge successful, downloading from:`, ffmpegResult.download_url);
+              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_download_started", message: `Downloading merged video from ${ffmpegResult.download_url}` } });
+
+              // Download the merged video
+              const mergedVideoResponse = await fetch(ffmpegResult.download_url);
+              console.log(`[worker:fallback] Merged video download status:`, mergedVideoResponse.status);
+              
+              if (mergedVideoResponse.ok) {
+                const mergedVideoBuffer = Buffer.from(await mergedVideoResponse.arrayBuffer());
+                console.log(`[worker:fallback] Merged video buffer size:`, mergedVideoBuffer.length, 'bytes');
+                
+                const uploadedMerged = await uploadBuffer({ 
                   buffer: mergedVideoBuffer, 
                   contentType: "video/mp4", 
                   ext: ".mp4", 
                   prefix: "videos"
                 });
 
-               console.log(`[worker:fallback] Merged video uploaded: ${uploadedMerged.url}`);
-               await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_success", message: `Merged video uploaded: ${uploadedMerged.url}` } });
+                console.log(`[worker:fallback] Merged video uploaded successfully: ${uploadedMerged.url}`);
+                await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_success", message: `Merged video uploaded: ${uploadedMerged.url}` } });
 
-               // Update episode with merged video URL
-               await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl: uploadedMerged.url } });
-             }
-           } else {
-             console.log(`[worker:fallback] FFMPEG merge failed:`, ffmpegResult);
-             await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_failed", message: `FFMPEG merge failed: ${JSON.stringify(ffmpegResult)}` } });
-           }
-         } catch (mergeError: any) {
-           console.log(`[worker:fallback] FFMPEG merge error:`, mergeError.message);
-           await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_error", message: `FFMPEG merge error: ${mergeError.message}` } });
-         }
-       }
+                // Update episode with merged video URL
+                await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl: uploadedMerged.url } });
+                console.log(`[worker:fallback] Episode updated with merged video URL: ${uploadedMerged.url}`);
+              } else {
+                console.log(`[worker:fallback] Failed to download merged video:`, mergedVideoResponse.status, mergedVideoResponse.statusText);
+                await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_download_failed", message: `Failed to download merged video: ${mergedVideoResponse.status}` } });
+              }
+            } else {
+              console.log(`[worker:fallback] FFMPEG merge failed:`, ffmpegResult);
+              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_failed", message: `FFMPEG merge failed: ${JSON.stringify(ffmpegResult)}` } });
+            }
+          } catch (mergeError: any) {
+            console.log(`[worker:fallback] FFMPEG merge error:`, mergeError.message);
+            console.log(`[worker:fallback] FFMPEG merge error stack:`, mergeError.stack);
+            await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_error", message: `FFMPEG merge error: ${mergeError.message}` } });
+          }
+        } else {
+          console.log(`[worker:fallback] No completed videos to merge`);
+          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_no_videos", message: `No completed videos to merge` } });
+        }
      }
 
      // Calculate total duration from all parts
