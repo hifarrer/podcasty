@@ -164,136 +164,33 @@ export async function POST(
 
     console.log("[DEBUG] Using Wavespeed request ID:", wavespeedId);
 
-    // Poll Wavespeed for the result
-    await prisma.eventLog.create({ 
-      data: { 
-        episodeId, 
-        userId: episode.userId, 
-        type: "debug_retrieve_start", 
-        message: `Debug: Starting video retrieval for ${wavespeedId}` 
-      } 
-    });
+    // Single, short call to avoid serverless timeouts. Client can call repeatedly.
+    try { await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_start", message: `Debug: Checking video for ${wavespeedId}` } }); } catch {}
 
-    for (let i = 0; i < 30; i++) { // Try for 5 minutes
-      await new Promise((r) => setTimeout(r, 10_000));
-      
-      const apiUrl = `https://api.wavespeed.ai/api/v3/predictions/${encodeURIComponent(wavespeedId)}/result`;
-      console.log(`[DEBUG] Poll ${i+1}/30 - Making API call to:`, apiUrl);
-      console.log(`[DEBUG] Poll ${i+1}/30 - Request headers:`, { Authorization: `Bearer ${env.WAVESPEED_KEY.substring(0, 10)}...` });
-      
-      const wsRes = await fetch(apiUrl, {
-        headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` },
-      });
-      
-      console.log(`[DEBUG] Poll ${i+1}/30 - Response status:`, wsRes.status);
-      const wsResult = await wsRes.json();
-      console.log(`[DEBUG] Poll ${i+1}/30 - Response body:`, wsResult);
-      
-      await prisma.eventLog.create({ 
-        data: { 
-          episodeId, 
-          userId: episode.userId, 
-          type: "debug_retrieve_poll", 
-          message: `Debug: Poll ${i+1}/30: status=${wsResult?.status}, error=${wsResult?.error || 'none'}` 
-        } 
-      });
+    const apiUrl = `https://api.wavespeed.ai/api/v3/predictions/${encodeURIComponent(wavespeedId)}/result`;
+    console.log(`[DEBUG] Single poll - Making API call to:`, apiUrl);
+    const wsRes = await fetch(apiUrl, { headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` } });
+    const wsResult = await wsRes.json();
+    console.log(`[DEBUG] Single poll - Response status:`, wsRes.status, "body:", wsResult);
+    try { await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_poll", message: `Debug: status=${wsResult?.status}, error=${wsResult?.error || 'none'}` } }); } catch {}
 
-      if (wsResult?.status === "failed" || wsResult?.error) {
-        console.log(`[DEBUG] Poll ${i+1}/30 - Wavespeed failed:`, wsResult?.error || "Unknown error");
-        await prisma.eventLog.create({ 
-          data: { 
-            episodeId, 
-            userId: episode.userId, 
-            type: "debug_retrieve_failed", 
-            message: `Debug: Wavespeed failed - ${wsResult?.error || "Unknown error"}` 
-          } 
-        });
-        return NextResponse.json({ 
-          success: false, 
-          error: `Wavespeed generation failed: ${wsResult?.error || "Unknown error"}` 
-        });
-      }
-
-      const videoUrlExternal = (Array.isArray(wsResult?.outputs) && wsResult.outputs[0])
-        ? wsResult.outputs[0]
-        : (wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
-
-      console.log(`[DEBUG] Poll ${i+1}/30 - Extracted video URL:`, videoUrlExternal);
-
-      if (videoUrlExternal) {
-        await prisma.eventLog.create({ 
-          data: { 
-            episodeId, 
-            userId: episode.userId, 
-            type: "debug_retrieve_success", 
-            message: `Debug: Video found - ${videoUrlExternal}` 
-          } 
-        });
-
-        // Immediately set external URL so UI can display
-        await prisma.episode.update({ 
-          where: { id: episodeId }, 
-          data: { videoUrl: videoUrlExternal } 
-        });
-
-        // Try to mirror to our storage
-        try {
-          const r = await fetch(videoUrlExternal);
-          if (r.ok) {
-            const buf = Buffer.from(await r.arrayBuffer());
-            const upV = await uploadBuffer({ 
-              buffer: buf, 
-              contentType: "video/mp4", 
-              ext: ".mp4", 
-              prefix: "videos" 
-            });
-            await prisma.episode.update({ 
-              where: { id: episodeId }, 
-              data: { videoUrl: upV.url } 
-            });
-            await prisma.eventLog.create({ 
-              data: { 
-                episodeId, 
-                userId: episode.userId, 
-                type: "debug_retrieve_mirrored", 
-                message: `Debug: Video mirrored to ${upV.url}` 
-              } 
-            });
-          }
-        } catch (mirrorError) {
-          await prisma.eventLog.create({ 
-            data: { 
-              episodeId, 
-              userId: episode.userId, 
-              type: "debug_retrieve_mirror_failed", 
-              message: `Debug: Failed to mirror video: ${mirrorError}` 
-            } 
-          });
-          // Continue with external URL
-        }
-
-        return NextResponse.json({ 
-          success: true, 
-          message: "Video retrieved successfully",
-          videoUrl: videoUrlExternal
-        });
-      }
+    if (wsResult?.status === "failed" || wsResult?.error) {
+      try { await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_failed", message: `Debug: Wavespeed failed - ${wsResult?.error || 'Unknown'}` } }); } catch {}
+      return NextResponse.json({ success: false, status: wsResult?.status || 'failed', error: wsResult?.error || 'Unknown error' }, { status: 200 });
     }
 
-    console.log("[DEBUG] Video retrieval timed out after 5 minutes");
-    await prisma.eventLog.create({ 
-      data: { 
-        episodeId, 
-        userId: episode.userId, 
-        type: "debug_retrieve_timeout", 
-        message: "Debug: Video retrieval timed out after 5 minutes" 
-      } 
-    });
+    const videoUrlExternal = (Array.isArray(wsResult?.outputs) && wsResult.outputs[0])
+      ? wsResult.outputs[0]
+      : (wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
 
-    return NextResponse.json({ 
-      success: false, 
-      error: "Video retrieval timed out after 5 minutes" 
-    });
+    if (videoUrlExternal) {
+      try { await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_success", message: `Debug: Video found - ${videoUrlExternal}` } }); } catch {}
+      await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl: videoUrlExternal } });
+      return NextResponse.json({ success: true, status: "completed", videoUrl: videoUrlExternal }, { status: 200 });
+    }
+
+    // Not ready yet
+    return NextResponse.json({ success: false, status: wsResult?.status || 'processing' }, { status: 200 });
 
   } catch (error: any) {
     console.error("[DEBUG] Error retrieving video:", error);
