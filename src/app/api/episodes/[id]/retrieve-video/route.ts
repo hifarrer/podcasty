@@ -119,23 +119,46 @@ export async function POST(
       console.log("[DEBUG] No Wavespeed request ID found in logs");
       console.log("[DEBUG] All event log types:", Array.from(new Set(episode.eventLogs.map(log => log.type))));
       console.log("[DEBUG] All event log messages:", episode.eventLogs.map(log => log.message));
-      
-      // Return detailed debug info in the response so we can see it in the browser
-      const debugInfo = {
-        error: "No Wavespeed request ID found in logs",
-        debug: {
-          episodeId: episodeId,
-          totalLogs: episode.eventLogs.length,
-          logTypes: Array.from(new Set(episode.eventLogs.map(log => log.type))),
-          wavespeedLogs: episode.eventLogs.filter(log => 
-            log.type.includes('wavespeed') || 
-            log.message.toLowerCase().includes('wavespeed')
-          ).map(log => ({ type: log.type, message: log.message })),
-          allLogs: episode.eventLogs.map(log => ({ type: log.type, message: log.message }))
+
+      // As a recovery path for debug: submit a NEW Wavespeed job once, then poll it
+      try {
+        const base = env.APP_URL || "http://localhost:3000";
+        const audioUrl = episode.audioUrl!.startsWith("http") ? episode.audioUrl! : `${base}${episode.audioUrl}`;
+        let imageUrl = episode.coverUrl || "";
+        if (!imageUrl) {
+          return NextResponse.json({ error: "No cover image on episode; cannot submit video job." }, { status: 400 });
         }
-      };
-      
-      return NextResponse.json(debugInfo, { status: 404 });
+        if (!imageUrl.startsWith("http")) imageUrl = `${base}${imageUrl}`;
+
+        await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_submit", message: `Debug: Submitting new Wavespeed job` } });
+        const wsSubmit = await fetch("https://api.wavespeed.ai/api/v3/wavespeed-ai/multitalk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.WAVESPEED_KEY}` },
+          body: JSON.stringify({ audio: audioUrl, image: imageUrl, prompt: "a person talking in a podcast", seed: -1 }),
+        });
+        const wsText = await wsSubmit.text();
+        let wsData: any = null;
+        try { wsData = JSON.parse(wsText); } catch {}
+        await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_submit_http", message: `HTTP ${wsSubmit.status}` } });
+        await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_response", message: wsText?.slice(0, 2000) || "<empty>" } });
+        const newId = (wsData?.id || wsData?.requestId || wsData?.request_id) as string | undefined;
+        if (!newId) {
+          return NextResponse.json({
+            error: "Failed to submit new Wavespeed job",
+            debug: {
+              httpStatus: wsSubmit.status,
+              body: wsText?.slice(0, 2000) || "<empty>",
+              audioUrl,
+              imageUrl,
+            }
+          }, { status: 502 });
+        }
+        wavespeedId = newId;
+        await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_polling", message: `Debug: Polling new Wavespeed id ${wavespeedId}` } });
+      } catch (submitErr: any) {
+        await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_submit_error", message: submitErr?.message || "Unknown submit error" } });
+        return NextResponse.json({ error: submitErr?.message || "Failed to submit Wavespeed job" }, { status: 500 });
+      }
     }
 
     console.log("[DEBUG] Using Wavespeed request ID:", wavespeedId);

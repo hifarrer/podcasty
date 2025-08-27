@@ -166,8 +166,14 @@ export async function processEpisode(episodeId: string): Promise<void> {
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.WAVESPEED_KEY}` },
           body: JSON.stringify({ audio: audioUrl, image: imageUrl, prompt: "a person talking in a podcast", seed: -1 }),
         });
-        const wsData = await wsSubmit.json();
-        const wsId = wsData?.id || wsData?.requestId || wsData?.request_id;
+        const wsText = await wsSubmit.text();
+        let wsData: any = null;
+        try {
+          wsData = JSON.parse(wsText);
+        } catch {}
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_submit_http", message: `HTTP ${wsSubmit.status}` } });
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_response", message: wsText?.slice(0, 2000) || "<empty>" } });
+        const wsId = (wsData?.id || wsData?.requestId || wsData?.request_id) as string | undefined;
         if (wsId) {
           await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_polling", message: `Starting Wavespeed polling for ${wsId}` } });
           for (let i = 0; i < 90; i++) { // ~15 minutes @ 10s
@@ -203,7 +209,8 @@ export async function processEpisode(episodeId: string): Promise<void> {
             }
           }
         } else {
-          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_error", message: `No request id from Wavespeed` } });
+          const detail = wsText?.slice(0, 500) || "<no body>";
+          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_error", message: `No request id from Wavespeed (status=${wsSubmit.status}) body=${detail}` } });
           await prisma.episode.update({ where: { id: episodeId }, data: { errorMessage: "VIDEO_GENERATION_FAILED" } });
         }
       } catch (e: any) {
