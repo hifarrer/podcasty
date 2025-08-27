@@ -156,7 +156,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
     // Kick off one Wavespeed lipsync generation now that audio is uploaded
     if (env.WAVESPEED_KEY && (ep.coverUrl || ep?.coverUrl)) {
       try {
-        const base = env.APP_URL || "http://localhost:3000";
+        const base = env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
         const audioUrl = uploaded.url.startsWith("http") ? uploaded.url : `${base}${uploaded.url}`;
         let imageUrl = ep.coverUrl || "";
         if (imageUrl && !imageUrl.startsWith("http")) imageUrl = `${base}${imageUrl}`;
@@ -173,7 +173,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
         } catch {}
         await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_submit_http", message: `HTTP ${wsSubmit.status}` } });
         await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_response", message: wsText?.slice(0, 2000) || "<empty>" } });
-        const wsId = (wsData?.id || wsData?.requestId || wsData?.request_id) as string | undefined;
+        const wsId = (wsData?.id || wsData?.requestId || wsData?.request_id || wsData?.data?.id) as string | undefined;
         if (wsId) {
           await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_polling", message: `Starting Wavespeed polling for ${wsId}` } });
           for (let i = 0; i < 90; i++) { // ~15 minutes @ 10s

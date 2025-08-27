@@ -122,7 +122,8 @@ export async function POST(
 
       // As a recovery path for debug: submit a NEW Wavespeed job once, then poll it
       try {
-        const base = env.APP_URL || "http://localhost:3000";
+        const reqOrigin = (request as any)?.nextUrl?.origin || "";
+        const base = env.APP_URL || reqOrigin || "http://localhost:3000";
         const audioUrl = episode.audioUrl!.startsWith("http") ? episode.audioUrl! : `${base}${episode.audioUrl}`;
         let imageUrl = episode.coverUrl || "";
         if (!imageUrl) {
@@ -141,7 +142,7 @@ export async function POST(
         try { wsData = JSON.parse(wsText); } catch {}
         await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_submit_http", message: `HTTP ${wsSubmit.status}` } });
         await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_response", message: wsText?.slice(0, 2000) || "<empty>" } });
-        const newId = (wsData?.id || wsData?.requestId || wsData?.request_id) as string | undefined;
+        const newId = (wsData?.id || wsData?.requestId || wsData?.request_id || wsData?.data?.id) as string | undefined;
         if (!newId) {
           return NextResponse.json({
             error: "Failed to submit new Wavespeed job",
