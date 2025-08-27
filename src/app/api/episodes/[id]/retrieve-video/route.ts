@@ -142,7 +142,7 @@ export async function POST(
         try { wsData = JSON.parse(wsText); } catch {}
         await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_submit_http", message: `HTTP ${wsSubmit.status}` } });
         await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_response", message: wsText?.slice(0, 2000) || "<empty>" } });
-        const newId = (wsData?.id || wsData?.requestId || wsData?.request_id || wsData?.data?.id) as string | undefined;
+        const newId = (wsData?.data?.id || wsData?.id || wsData?.requestId || wsData?.request_id) as string | undefined;
         if (!newId) {
           return NextResponse.json({
             error: "Failed to submit new Wavespeed job",
@@ -174,14 +174,18 @@ export async function POST(
     console.log(`[DEBUG] Single poll - Response status:`, wsRes.status, "body:", wsResult);
     try { await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_poll", message: `Debug: status=${wsResult?.status}, error=${wsResult?.error || 'none'}` } }); } catch {}
 
-    if (wsResult?.status === "failed" || wsResult?.error) {
-      try { await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_failed", message: `Debug: Wavespeed failed - ${wsResult?.error || 'Unknown'}` } }); } catch {}
-      return NextResponse.json({ success: false, status: wsResult?.status || 'failed', error: wsResult?.error || 'Unknown error' }, { status: 200 });
+    const status = wsResult?.data?.status || wsResult?.status;
+    const error = wsResult?.data?.error || wsResult?.error;
+    
+    if (status === "failed" || error) {
+      try { await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_failed", message: `Debug: Wavespeed failed - ${error || 'Unknown'}` } }); } catch {}
+      return NextResponse.json({ success: false, status: status || 'failed', error: error || 'Unknown error' }, { status: 200 });
     }
 
-    const videoUrlExternal = (Array.isArray(wsResult?.outputs) && wsResult.outputs[0])
-      ? wsResult.outputs[0]
-      : (wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
+    const outputs = wsResult?.data?.outputs || wsResult?.outputs;
+    const videoUrlExternal = (Array.isArray(outputs) && outputs[0])
+      ? outputs[0]
+      : (wsResult?.data?.output?.video || wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
 
     if (videoUrlExternal) {
       try { await prisma.eventLog.create({ data: { episodeId, userId: episode.userId, type: "debug_retrieve_success", message: `Debug: Video found - ${videoUrlExternal}` } }); } catch {}
@@ -190,7 +194,7 @@ export async function POST(
     }
 
     // Not ready yet
-    return NextResponse.json({ success: false, status: wsResult?.status || 'processing' }, { status: 200 });
+    return NextResponse.json({ success: false, status: status || 'processing' }, { status: 200 });
 
   } catch (error: any) {
     console.error("[DEBUG] Error retrieving video:", error);

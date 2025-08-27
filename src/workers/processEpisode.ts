@@ -173,7 +173,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
         } catch {}
         await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_submit_http", message: `HTTP ${wsSubmit.status}` } });
         await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_response", message: wsText?.slice(0, 2000) || "<empty>" } });
-        const wsId = (wsData?.id || wsData?.requestId || wsData?.request_id || wsData?.data?.id) as string | undefined;
+        const wsId = (wsData?.data?.id || wsData?.id || wsData?.requestId || wsData?.request_id) as string | undefined;
         if (wsId) {
           await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_polling", message: `Starting Wavespeed polling for ${wsId}` } });
           for (let i = 0; i < 90; i++) { // ~15 minutes @ 10s
@@ -182,15 +182,18 @@ export async function processEpisode(episodeId: string): Promise<void> {
               headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` },
             });
             const wsResult = await wsRes.json();
-            await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll", message: `Poll ${i+1}/90: status=${wsResult?.status}, error=${wsResult?.error || 'none'}` } });
-            if (wsResult?.status === "failed" || wsResult?.error) {
-              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_failed", message: wsResult?.error || "Wavespeed failed" } });
+            const status = wsResult?.data?.status || wsResult?.status;
+            const error = wsResult?.data?.error || wsResult?.error;
+            await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll", message: `Poll ${i+1}/90: status=${status}, error=${error || 'none'}` } });
+            if (status === "failed" || error) {
+              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_failed", message: error || "Wavespeed failed" } });
               await prisma.episode.update({ where: { id: episodeId }, data: { errorMessage: "VIDEO_GENERATION_FAILED" } });
               break;
             }
-            const videoUrlExternal = (Array.isArray(wsResult?.outputs) && wsResult.outputs[0])
-              ? wsResult.outputs[0]
-              : (wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
+            const outputs = wsResult?.data?.outputs || wsResult?.outputs;
+            const videoUrlExternal = (Array.isArray(outputs) && outputs[0])
+              ? outputs[0]
+              : (wsResult?.data?.output?.video || wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
             if (videoUrlExternal) {
               await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_success", message: `Video found: ${videoUrlExternal}` } });
               // Immediately set external URL so UI can display, then try to mirror to our storage
