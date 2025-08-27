@@ -169,6 +169,17 @@ export default function EpisodesPage() {
       } else {
         const errorText = await response.text();
         console.log("[DEBUG] Response not ok, error text:", errorText);
+        
+        // Try to parse the error response for debug info
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.debug) {
+            console.log("[DEBUG] Detailed debug info:", errorData.debug);
+          }
+        } catch (e) {
+          // If parsing fails, just log the raw text
+        }
+        
         alert('Failed to retrieve video. Please try again.');
       }
     } catch (error) {

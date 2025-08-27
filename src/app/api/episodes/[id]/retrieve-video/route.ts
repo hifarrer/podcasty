@@ -119,7 +119,23 @@ export async function POST(
       console.log("[DEBUG] No Wavespeed request ID found in logs");
       console.log("[DEBUG] All event log types:", Array.from(new Set(episode.eventLogs.map(log => log.type))));
       console.log("[DEBUG] All event log messages:", episode.eventLogs.map(log => log.message));
-      return NextResponse.json({ error: "No Wavespeed request ID found in logs" }, { status: 404 });
+      
+      // Return detailed debug info in the response so we can see it in the browser
+      const debugInfo = {
+        error: "No Wavespeed request ID found in logs",
+        debug: {
+          episodeId: episodeId,
+          totalLogs: episode.eventLogs.length,
+          logTypes: Array.from(new Set(episode.eventLogs.map(log => log.type))),
+          wavespeedLogs: episode.eventLogs.filter(log => 
+            log.type.includes('wavespeed') || 
+            log.message.toLowerCase().includes('wavespeed')
+          ).map(log => ({ type: log.type, message: log.message })),
+          allLogs: episode.eventLogs.map(log => ({ type: log.type, message: log.message }))
+        }
+      };
+      
+      return NextResponse.json(debugInfo, { status: 404 });
     }
 
     console.log("[DEBUG] Using Wavespeed request ID:", wavespeedId);
