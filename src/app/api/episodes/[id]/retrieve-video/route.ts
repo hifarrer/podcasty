@@ -123,7 +123,7 @@ export async function POST(
       // As a recovery path for debug: submit a NEW Wavespeed job once, then poll it
       try {
         const reqOrigin = (request as any)?.nextUrl?.origin || "";
-        const base = env.APP_URL || reqOrigin || "http://localhost:3000";
+        const base = env.APP_URL || reqOrigin || "https://www.podcasty.site/";
         const audioUrl = episode.audioUrl!.startsWith("http") ? episode.audioUrl! : `${base}${episode.audioUrl}`;
         let imageUrl = episode.coverUrl || "";
         if (!imageUrl) {

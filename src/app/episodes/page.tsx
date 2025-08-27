@@ -138,6 +138,7 @@ export default function EpisodesPage() {
   async function retrieveVideoFromWavespeed(epId: string) {
     console.log("[DEBUG] Starting video retrieval for episode:", epId);
     setRetrievingVideos(prev => ({ ...prev, [epId]: true }));
+    let willRetry = false;
     try {
       const url = `/api/episodes/${epId}/retrieve-video`;
       console.log("[DEBUG] Making request to:", url);
@@ -162,9 +163,18 @@ export default function EpisodesPage() {
           // Refresh the episodes list to show the new video
           await fetchEpisodes();
           alert('Video retrieved successfully!');
+        } else if (result.status === 'processing' || result.status === 'created') {
+          console.log(`[DEBUG] Video not ready yet (status=${result.status}). Retrying in 10s...`);
+          willRetry = true;
+          setTimeout(() => {
+            retrieveVideoFromWavespeed(epId);
+          }, 10_000);
+        } else if (result.status === 'failed') {
+          console.log("[DEBUG] Wavespeed reports failed:", result.error);
+          alert(`Video generation failed: ${result.error || 'Unknown error'}`);
         } else {
-          console.log("[DEBUG] Video retrieval failed:", result.error);
-          alert(`Failed to retrieve video: ${result.error || 'Unknown error'}`);
+          console.log("[DEBUG] Unexpected response:", result);
+          alert('Failed to retrieve video. Please try again.');
         }
       } else {
         const errorText = await response.text();
@@ -186,7 +196,9 @@ export default function EpisodesPage() {
       console.error('[DEBUG] Error retrieving video:', error);
       alert('Error retrieving video. Please try again.');
     } finally {
-      setRetrievingVideos(prev => ({ ...prev, [epId]: false }));
+      if (!willRetry) {
+        setRetrievingVideos(prev => ({ ...prev, [epId]: false }));
+      }
     }
   }
   
