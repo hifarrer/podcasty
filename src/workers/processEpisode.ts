@@ -114,8 +114,21 @@ export async function processEpisode(episodeId: string): Promise<void> {
      }
      
      const partKeys = Object.keys(parts30s).sort((a, b) => Number(a) - Number(b));
-     console.log(`[worker:fallback] Found ${partKeys.length} parts to process`);
-     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "parts_found", message: `Found ${partKeys.length} parts to process` } });
+     const expectedParts = Math.max(1, Math.floor((ep.targetMinutes || 1) * 2));
+     const maxAllowedParts = expectedParts + 1; // Allow 1 extra part for tolerance
+     
+     console.log(`[worker:fallback] Found ${partKeys.length} parts, expected ${expectedParts} (max ${maxAllowedParts})`);
+     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "parts_found", message: `Found ${partKeys.length} parts, expected ${expectedParts} (max ${maxAllowedParts})` } });
+     
+     // Validate number of parts
+     if (partKeys.length > maxAllowedParts) {
+       throw new Error(`Script has too many parts: ${partKeys.length} (expected ${expectedParts}, max ${maxAllowedParts}). Target duration: ${ep.targetMinutes} minutes`);
+     }
+     
+     if (partKeys.length < expectedParts) {
+       console.log(`[worker:fallback] Warning: Script has fewer parts than expected: ${partKeys.length} (expected ${expectedParts})`);
+       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "parts_warning", message: `Script has fewer parts than expected: ${partKeys.length} (expected ${expectedParts})` } });
+     }
 
      // Generate audio for each part
      await prisma.episode.update({ where: { id: episodeId }, data: { status: "AUDIO_POST" as any } });
