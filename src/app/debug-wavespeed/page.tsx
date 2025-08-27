@@ -39,15 +39,15 @@ export default function DebugWavespeedPage() {
       const result = await response.json();
       addLog(`Step 1 Response: ${JSON.stringify(result, null, 2)}`);
       
-      if (result.id) {
-        setRequestId(result.id);
-        addLog(`Step 1 Success: Got request ID ${result.id}`);
-        
-        // Start polling for results
-        pollForResults(result.id);
-      } else {
-        addLog("Step 1 Error: No ID in response");
-      }
+             if (result.data?.id) {
+         setRequestId(result.data.id);
+         addLog(`Step 1 Success: Got request ID ${result.data.id}`);
+         
+         // Start polling for results
+         pollForResults(result.data.id);
+       } else {
+         addLog("Step 1 Error: No ID in response");
+       }
     } catch (error) {
       addLog(`Step 1 Exception: ${error}`);
     } finally {
@@ -77,15 +77,15 @@ export default function DebugWavespeedPage() {
         const result = await response.json();
         addLog(`Step 2 Response: ${JSON.stringify(result, null, 2)}`);
         
-        if (result.status === "succeeded" && result.output) {
+        if (result.data?.status === "succeeded" && result.data?.outputs?.length > 0) {
           addLog(`Step 2 Success: Video ready!`);
-          setVideoUrl(result.output);
+          setVideoUrl(result.data.outputs[0]);
           clearInterval(pollInterval);
-        } else if (result.status === "failed") {
-          addLog(`Step 2 Error: Generation failed - ${result.error || "Unknown error"}`);
+        } else if (result.data?.status === "failed") {
+          addLog(`Step 2 Error: Generation failed - ${result.data?.error || "Unknown error"}`);
           clearInterval(pollInterval);
         } else {
-          addLog(`Step 2: Still processing (status: ${result.status})`);
+          addLog(`Step 2: Still processing (status: ${result.data?.status || "unknown"})`);
         }
       } catch (error) {
         addLog(`Step 2 Exception: ${error}`);
