@@ -440,39 +440,79 @@ export async function processEpisode(episodeId: string): Promise<void> {
             const ffmpegResult = await ffmpegResponse.json();
             console.log(`[worker:fallback] FFMPEG merge response:`, ffmpegResult);
 
-            if (ffmpegResult.success && ffmpegResult.download_url) {
-              console.log(`[worker:fallback] FFMPEG merge successful, downloading from:`, ffmpegResult.download_url);
-              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_download_started", message: `Downloading merged video from ${ffmpegResult.download_url}` } });
+                         if (ffmpegResult.success && ffmpegResult.job_id) {
+               console.log(`[worker:fallback] FFMPEG job submitted successfully, job_id: ${ffmpegResult.job_id}`);
+               await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_job_submitted", message: `FFMPEG job submitted: ${ffmpegResult.job_id}` } });
 
-              // Download the merged video
-              const mergedVideoResponse = await fetch(ffmpegResult.download_url);
-              console.log(`[worker:fallback] Merged video download status:`, mergedVideoResponse.status);
-              
-              if (mergedVideoResponse.ok) {
-                const mergedVideoBuffer = Buffer.from(await mergedVideoResponse.arrayBuffer());
-                console.log(`[worker:fallback] Merged video buffer size:`, mergedVideoBuffer.length, 'bytes');
-                
-                const uploadedMerged = await uploadBuffer({ 
-                  buffer: mergedVideoBuffer, 
-                  contentType: "video/mp4", 
-                  ext: ".mp4", 
-                  prefix: "videos"
-                });
+               // Poll for FFMPEG job completion
+               console.log(`[worker:fallback] Starting to poll FFMPEG job status`);
+               const maxFfmpegPolls = 60; // ~10 minutes @ 10s
+               let ffmpegCompleted = false;
+               
+               for (let ffmpegPoll = 0; ffmpegPoll < maxFfmpegPolls; ffmpegPoll++) {
+                 console.log(`[worker:fallback] FFMPEG poll attempt ${ffmpegPoll + 1}/${maxFfmpegPolls}`);
+                 
+                 try {
+                   const ffmpegStatusResponse = await fetch(`https://ffmpegapi.net/api/job/${ffmpegResult.job_id}/status`);
+                   const ffmpegStatusResult = await ffmpegStatusResponse.json();
+                   
+                   console.log(`[worker:fallback] FFMPEG status response:`, ffmpegStatusResult);
+                   
+                   if (ffmpegStatusResult.status === "completed" && ffmpegStatusResult.download_url) {
+                     console.log(`[worker:fallback] FFMPEG merge completed, downloading from:`, ffmpegStatusResult.download_url);
+                     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_download_started", message: `Downloading merged video from ${ffmpegStatusResult.download_url}` } });
 
-                console.log(`[worker:fallback] Merged video uploaded successfully: ${uploadedMerged.url}`);
-                await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_success", message: `Merged video uploaded: ${uploadedMerged.url}` } });
+                     // Download the merged video
+                     const mergedVideoResponse = await fetch(ffmpegStatusResult.download_url);
+                     console.log(`[worker:fallback] Merged video download status:`, mergedVideoResponse.status);
+                     
+                     if (mergedVideoResponse.ok) {
+                       const mergedVideoBuffer = Buffer.from(await mergedVideoResponse.arrayBuffer());
+                       console.log(`[worker:fallback] Merged video buffer size:`, mergedVideoBuffer.length, 'bytes');
+                       
+                       const uploadedMerged = await uploadBuffer({ 
+                         buffer: mergedVideoBuffer, 
+                         contentType: "video/mp4", 
+                         ext: ".mp4", 
+                         prefix: "videos"
+                       });
 
-                // Update episode with merged video URL
-                await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl: uploadedMerged.url } });
-                console.log(`[worker:fallback] Episode updated with merged video URL: ${uploadedMerged.url}`);
-              } else {
-                console.log(`[worker:fallback] Failed to download merged video:`, mergedVideoResponse.status, mergedVideoResponse.statusText);
-                await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_download_failed", message: `Failed to download merged video: ${mergedVideoResponse.status}` } });
-              }
-            } else {
-              console.log(`[worker:fallback] FFMPEG merge failed:`, ffmpegResult);
-              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_failed", message: `FFMPEG merge failed: ${JSON.stringify(ffmpegResult)}` } });
-            }
+                       console.log(`[worker:fallback] Merged video uploaded successfully: ${uploadedMerged.url}`);
+                       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_success", message: `Merged video uploaded: ${uploadedMerged.url}` } });
+
+                       // Update episode with merged video URL
+                       await prisma.episode.update({ where: { id: episodeId }, data: { videoUrl: uploadedMerged.url } });
+                       console.log(`[worker:fallback] Episode updated with merged video URL: ${uploadedMerged.url}`);
+                       ffmpegCompleted = true;
+                       break;
+                     } else {
+                       console.log(`[worker:fallback] Failed to download merged video:`, mergedVideoResponse.status, mergedVideoResponse.statusText);
+                       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_download_failed", message: `Failed to download merged video: ${mergedVideoResponse.status}` } });
+                       break;
+                     }
+                   } else if (ffmpegStatusResult.status === "failed") {
+                     console.log(`[worker:fallback] FFMPEG merge failed:`, ffmpegStatusResult);
+                     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_failed", message: `FFMPEG merge failed: ${JSON.stringify(ffmpegStatusResult)}` } });
+                     break;
+                   } else {
+                     console.log(`[worker:fallback] FFMPEG still processing (status: ${ffmpegStatusResult.status})`);
+                     await new Promise((r) => setTimeout(r, 10_000)); // Wait 10 seconds
+                   }
+                 } catch (ffmpegPollError: any) {
+                   console.log(`[worker:fallback] FFMPEG poll error:`, ffmpegPollError.message);
+                   await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_poll_error", message: `FFMPEG poll error: ${ffmpegPollError.message}` } });
+                   break;
+                 }
+               }
+               
+               if (!ffmpegCompleted) {
+                 console.log(`[worker:fallback] FFMPEG merge timed out or failed`);
+                 await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_timeout", message: `FFMPEG merge timed out after ${maxFfmpegPolls} polls` } });
+               }
+             } else {
+               console.log(`[worker:fallback] FFMPEG merge failed:`, ffmpegResult);
+               await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_failed", message: `FFMPEG merge failed: ${JSON.stringify(ffmpegResult)}` } });
+             }
           } catch (mergeError: any) {
             console.log(`[worker:fallback] FFMPEG merge error:`, mergeError.message);
             console.log(`[worker:fallback] FFMPEG merge error stack:`, mergeError.stack);
