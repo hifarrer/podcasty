@@ -73,6 +73,7 @@ export default function EpisodesPage() {
   const [loading, setLoading] = useState(true);
   const [debugMap, setDebugMap] = useState<Record<string, { open: boolean; loading: boolean; videos: string[]; audios: string[] }>>({});
   const [retrievingVideos, setRetrievingVideos] = useState<Record<string, boolean>>({});
+  const [pollingEpisodes, setPollingEpisodes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -94,7 +95,18 @@ export default function EpisodesPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setEpisodes(data.episodes || []);
+        const newEpisodes = data.episodes || [];
+        setEpisodes(newEpisodes);
+        
+        // Start polling for episodes that are processing
+        newEpisodes.forEach((ep: Episode) => {
+          if (ep.status === "PROCESSING" || ep.status === "SYNTHESIZING" || ep.status === "AUDIO_POST") {
+            if (!pollingEpisodes.has(ep.id)) {
+              console.log(`[BROWSER] Starting to poll episode ${ep.id} (status: ${ep.status})`);
+              startPollingEpisode(ep.id);
+            }
+          }
+        });
       } else if (res.status === 401) {
         // Redirect to login if unauthorized
         router.push("/login?message=Please sign in to view your episodes");
@@ -104,6 +116,60 @@ export default function EpisodesPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startPollingEpisode = (episodeId: string) => {
+    setPollingEpisodes(prev => new Set(prev).add(episodeId));
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/episodes/${episodeId}/status`, {
+          credentials: "include"
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[BROWSER] Episode ${episodeId} status update:`, data.status);
+          
+          // Also fetch recent event logs to show detailed progress
+          try {
+            const eventsResponse = await fetch(`/api/episodes/${episodeId}/events`, {
+              credentials: "include"
+            });
+            if (eventsResponse.ok) {
+              const eventsData = await eventsResponse.json();
+              if (Array.isArray(eventsData.events) && eventsData.events.length > 0) {
+                const recentEvents = eventsData.events.slice(-3); // Show last 3 events
+                recentEvents.forEach((event: any) => {
+                  console.log(`[BROWSER] Episode ${episodeId} event: ${event.type} - ${event.message}`);
+                });
+              }
+            }
+          } catch (eventsError) {
+            // Ignore events fetch errors
+          }
+          
+          // Stop polling if episode is completed or failed
+          if (data.status === "PUBLISHED" || data.status === "FAILED") {
+            console.log(`[BROWSER] Episode ${episodeId} completed with status: ${data.status}`);
+            clearInterval(pollInterval);
+            setPollingEpisodes(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(episodeId);
+              return newSet;
+            });
+            
+            // Refresh episodes list to show final state
+            await fetchEpisodes();
+          }
+        }
+      } catch (error) {
+        console.error(`[BROWSER] Error polling episode ${episodeId}:`, error);
+      }
+    }, 5000); // Poll every 5 seconds
+    
+    // Store the interval ID to clear it later if needed
+    return () => clearInterval(pollInterval);
   };
 
   async function toggleDebug(epId: string) {
@@ -298,6 +364,11 @@ export default function EpisodesPage() {
                       <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ep.status)}`}>
                         {getStatusIcon(ep.status)}
                         {ep.status}
+                        {pollingEpisodes.has(ep.id) && (
+                          <svg className="w-3 h-3 animate-spin ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        )}
                       </div>
                     </div>
                     
