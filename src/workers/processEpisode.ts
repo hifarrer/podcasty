@@ -180,9 +180,17 @@ export async function processEpisode(episodeId: string): Promise<void> {
        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_part_done", message: `Part ${partNumber} audio uploaded: ${audioUrl}` } });
      }
 
+     console.log(`[worker:fallback] All audio parts completed, preparing for video generation`);
+     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_all_done", message: `All ${videoParts.length} audio parts completed` } });
+
      // Submit all video generation jobs to Wavespeed
+     console.log(`[worker:fallback] Checking video generation conditions:`);
+     console.log(`[worker:fallback] - WAVESPEED_KEY exists: ${!!env.WAVESPEED_KEY}`);
+     console.log(`[worker:fallback] - coverUrl exists: ${!!ep.coverUrl}`);
+     console.log(`[worker:fallback] - ep.coverUrl value: ${ep.coverUrl}`);
+     
      if (env.WAVESPEED_KEY && (ep.coverUrl || ep?.coverUrl)) {
-       console.log(`[worker:fallback] Starting video generation for ${videoParts.length} parts`);
+       console.log(`[worker:fallback] Video generation conditions met, starting video generation for ${videoParts.length} parts`);
        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_generation_started", message: `Starting video generation for ${videoParts.length} parts` } });
 
        let imageUrl = ep.coverUrl || "";
@@ -206,13 +214,25 @@ export async function processEpisode(episodeId: string): Promise<void> {
            });
 
            const wsText = await wsSubmit.text();
+           console.log(`[worker:fallback] Part ${part.partNumber} Wavespeed response text:`, wsText);
+           
            let wsData: any = null;
            try {
              wsData = JSON.parse(wsText);
-           } catch {}
+             console.log(`[worker:fallback] Part ${part.partNumber} Wavespeed parsed response:`, JSON.stringify(wsData, null, 2));
+           } catch (parseError) {
+             console.log(`[worker:fallback] Part ${part.partNumber} Failed to parse Wavespeed response:`, parseError);
+           }
 
            await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_submit_response", message: `Part ${part.partNumber} - HTTP ${wsSubmit.status}` } });
 
+           console.log(`[worker:fallback] Part ${part.partNumber} Extracting ID from:`, {
+             'wsData?.data?.id': wsData?.data?.id,
+             'wsData?.id': wsData?.id,
+             'wsData?.requestId': wsData?.requestId,
+             'wsData?.request_id': wsData?.request_id
+           });
+           
            const wsId = (wsData?.data?.id || wsData?.id || wsData?.requestId || wsData?.request_id) as string | undefined;
            if (wsId) {
              part.wavespeedId = wsId;
@@ -426,11 +446,16 @@ export async function processEpisode(episodeId: string): Promise<void> {
             console.log(`[worker:fallback] FFMPEG merge error stack:`, mergeError.stack);
             await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_error", message: `FFMPEG merge error: ${mergeError.message}` } });
           }
-        } else {
-          console.log(`[worker:fallback] No completed videos to merge`);
-          await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_no_videos", message: `No completed videos to merge` } });
-        }
+             } else {
+       console.log(`[worker:fallback] No completed videos to merge`);
+       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_no_videos", message: `No completed videos to merge` } });
      }
+   } else {
+     console.log(`[worker:fallback] Video generation conditions NOT met - skipping video generation`);
+     console.log(`[worker:fallback] - WAVESPEED_KEY: ${!!env.WAVESPEED_KEY}`);
+     console.log(`[worker:fallback] - coverUrl: ${ep.coverUrl}`);
+     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_skipped", message: `Video generation skipped - WAVESPEED_KEY: ${!!env.WAVESPEED_KEY}, coverUrl: ${!!ep.coverUrl}` } });
+   }
 
      // Calculate total duration from all parts
      let totalDurationSec = 0;
@@ -449,6 +474,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
      }
 
      // Update episode with final data
+     console.log(`[worker:fallback] Updating episode with final data - status: PUBLISHED`);
      await prisma.episode.update({
        where: { id: episodeId },
        data: {
