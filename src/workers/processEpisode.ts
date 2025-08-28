@@ -287,26 +287,35 @@ export async function processEpisode(episodeId: string): Promise<void> {
                 headers: { Authorization: `Bearer ${env.WAVESPEED_KEY}` },
               });
 
-              const wsResult = await wsRes.json();
-              const status = wsResult?.data?.status || wsResult?.status;
-              const error = wsResult?.data?.error || wsResult?.error;
+                             const wsResult = await wsRes.json();
+               const status = wsResult?.data?.status || wsResult?.status;
+               const error = wsResult?.data?.error || wsResult?.error;
 
-              console.log(`[worker:fallback] Part ${part.partNumber} status: ${status}, error: ${error || 'none'}`);
-              await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll", message: `Part ${part.partNumber} - Poll ${pollAttempt + 1}: status=${status}, error=${error || 'none'}` } });
+               console.log(`[worker:fallback] Part ${part.partNumber} status: ${status}, error: ${error || 'none'}`);
+               console.log(`[worker:fallback] Part ${part.partNumber} full response:`, JSON.stringify(wsResult, null, 2));
+               await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_poll", message: `Part ${part.partNumber} - Poll ${pollAttempt + 1}: status=${status}, error=${error || 'none'}` } });
 
-              if (status === "failed" || error) {
-                console.log(`[worker:fallback] Part ${part.partNumber} failed with status: ${status}, error: ${error}`);
-                part.status = 'failed';
-                anyFailed = true;
-                await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_failed", message: `Part ${part.partNumber} failed: ${error || 'Unknown error'}` } });
-              } else if (status === "succeeded") {
+                             if (status === "failed" || error) {
+                 console.log(`[worker:fallback] Part ${part.partNumber} failed with status: ${status}, error: ${error}`);
+                 part.status = 'failed';
+                 anyFailed = true;
+                 await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "wavespeed_failed", message: `Part ${part.partNumber} failed: ${error || 'Unknown error'}` } });
+               } else if (status === "succeeded" || status === "completed") {
                 console.log(`[worker:fallback] Part ${part.partNumber} succeeded, extracting video URL`);
                 const outputs = wsResult?.data?.outputs || wsResult?.outputs;
                 const videoUrlExternal = (Array.isArray(outputs) && outputs[0])
                   ? outputs[0]
                   : (wsResult?.data?.output?.video || wsResult?.output?.video || wsResult?.video || wsResult?.download_url || null);
 
+                console.log(`[worker:fallback] Part ${part.partNumber} outputs:`, outputs);
                 console.log(`[worker:fallback] Part ${part.partNumber} video URL: ${videoUrlExternal}`);
+                console.log(`[worker:fallback] Part ${part.partNumber} checking for video URL in:`, {
+                  'outputs[0]': Array.isArray(outputs) ? outputs[0] : 'not array',
+                  'wsResult?.data?.output?.video': wsResult?.data?.output?.video,
+                  'wsResult?.output?.video': wsResult?.output?.video,
+                  'wsResult?.video': wsResult?.video,
+                  'wsResult?.download_url': wsResult?.download_url
+                });
 
                 if (videoUrlExternal) {
                   // Download and upload video to our storage
