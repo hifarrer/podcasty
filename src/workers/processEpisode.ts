@@ -452,9 +452,13 @@ export async function processEpisode(episodeId: string): Promise<void> {
                for (let ffmpegPoll = 0; ffmpegPoll < maxFfmpegPolls; ffmpegPoll++) {
                  console.log(`[worker:fallback] FFMPEG poll attempt ${ffmpegPoll + 1}/${maxFfmpegPolls}`);
                  
-                 try {
-                   const ffmpegStatusResponse = await fetch(`https://ffmpegapi.net/api/job/${ffmpegResult.job_id}/status`);
-                   const ffmpegStatusResult = await ffmpegStatusResponse.json();
+                                   try {
+                    const ffmpegStatusResponse = await fetch(`https://ffmpegapi.net/api/job/${ffmpegResult.job_id}/status`, {
+                      headers: {
+                        "X-API-Key": "ffmpeg_KfTAf98EY9OCuriwBtLT34ZtWZLJtnXX"
+                      }
+                    });
+                    const ffmpegStatusResult = await ffmpegStatusResponse.json();
                    
                    console.log(`[worker:fallback] FFMPEG status response:`, ffmpegStatusResult);
                    
