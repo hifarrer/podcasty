@@ -121,7 +121,7 @@ export default function EpisodesPage() {
   };
 
   const videoEpisodes = episodes.filter(ep => !!ep.videoUrl);
-  const audioEpisodes = episodes.filter(ep => !!ep.audioUrl);
+  const audioEpisodes = episodes.filter(ep => !!ep.audioUrl && !ep.videoUrl);
   const episodesToShow = activeTab === 'videos' ? videoEpisodes : audioEpisodes;
 
   function openDeleteModal(ep: Episode) {

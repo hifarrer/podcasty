@@ -53,15 +53,19 @@ function PublicGallery() {
                   </span>
                 )}
               </div>
-              {ep.audioUrl && (
-                <audio
-                  key={ep.id}
-                  controls
-                  className="w-full mt-4"
-                  preload="none"
-                  src={ep.audioUrl}
-                />
-              )}
+              {ep.videoUrl ? (
+                <video key={`${ep.id}-video`} controls className="w-full mt-4" preload="metadata" poster={ep.coverUrl || undefined}>
+                  <source src={ep.videoUrl} />
+                </video>
+              ) : ep.audioUrl ? (
+                <>
+                  <div className="mt-4 flex items-center gap-3 text-[#cccccc]">
+                    <Mic className="w-7 h-7 text-[#00c8c8]" />
+                    <span className="text-sm font-medium uppercase tracking-wide">Audio Only</span>
+                  </div>
+                  <audio key={`${ep.id}-audio`} controls className="w-full mt-2" preload="none" src={ep.audioUrl} />
+                </>
+              ) : null}
             </div>
           ))}
         </div>

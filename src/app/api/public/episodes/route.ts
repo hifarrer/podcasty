@@ -23,6 +23,8 @@ export async function GET(req: NextRequest) {
         sourceType: true,
         promptText: true,
         audioUrl: true,
+        videoUrl: true,
+        coverUrl: true,
         createdAt: true,
       }
     });
