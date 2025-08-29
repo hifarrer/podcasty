@@ -96,11 +96,14 @@ export default function Home() {
               The AI-Powered Podcast Creator
             </h1>
             <div className="flex justify-center mb-8">
-              <img 
-                src="/assets/images/podcast_image.png" 
-                alt="AI Podcast Creation" 
+              <video
                 className="max-w-full h-auto max-h-96 rounded-lg shadow-2xl"
-              />
+                controls
+                preload="metadata"
+                playsInline
+              >
+                <source src="/assets/videos/podcasty_sample.mp4" />
+              </video>
             </div>
             <p className="text-xl lg:text-2xl text-[#cccccc] mb-12 leading-relaxed">
               Transform any content into polished podcast episodes with natural AI voices, 
