@@ -24,13 +24,14 @@ export default function CreateEpisodePage() {
   const [mode, setMode] = useState<Mode>("SUMMARY");
   const [targetMinutes, setTargetMinutes] = useState(1);
   const [includeIntro, setIncludeIntro] = useState(true);
-  const [includeOutro, setIncludeOutro] = useState(true);
-  const [chaptersEnabled, setChaptersEnabled] = useState(true);
+  const [includeOutro, setIncludeOutro] = useState(false);
+  const [chaptersEnabled, setChaptersEnabled] = useState(false);
   const [voiceId, setVoiceId] = useState<string>("");
   const [voiceIdB, setVoiceIdB] = useState<string>("");
   const [voices, setVoices] = useState<{ voice_id: string; name: string; preview_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(false);
   const [isPublic, setIsPublic] = useState<boolean>(true);
+  const [generateVideo, setGenerateVideo] = useState<boolean>(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [episode, setEpisode] = useState<Episode | null>(null);
@@ -188,33 +189,34 @@ export default function CreateEpisodePage() {
   async function submit() {
     setLoading(true);
     try {
-      if (!characterA) {
-        throw new Error("Please add Character 1 image.");
+      if (generateVideo && !characterA) {
+        throw new Error("Please add Character 1 image for video generation.");
       }
-      const res = await fetch("/api/episodes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          sourceType,
-          sourceUrl: (sourceType === "YOUTUBE" || sourceType === "WEB") ? (sourceUrl || undefined) : undefined,
-          promptText: sourceType === "PROMPT" ? promptText : undefined,
-          uploadKey: sourceType === "TXT" ? (uploadKey || undefined) : undefined,
-          mode,
-          targetMinutes,
-          includeIntro,
-          includeOutro,
-          chaptersEnabled,
-          isPublic,
-          speakers: mode === "DISCUSSION" ? 2 : 1,
-          voices: mode === "DISCUSSION" ? [voiceId, voiceIdB].filter(Boolean) : [voiceId].filter(Boolean),
-          speakerNames: mode === "DISCUSSION" ? {
-            A: voices.find((v) => v.voice_id === voiceId)?.name || undefined,
-            B: voices.find((v) => v.voice_id === voiceIdB)?.name || undefined,
-          } : undefined,
-          coverUrl: characterA || undefined,
-        }),
-      });
+              const res = await fetch("/api/episodes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            sourceType,
+            sourceUrl: (sourceType === "YOUTUBE" || sourceType === "WEB") ? (sourceUrl || undefined) : undefined,
+            promptText: sourceType === "PROMPT" ? promptText : undefined,
+            uploadKey: sourceType === "TXT" ? (uploadKey || undefined) : undefined,
+            mode,
+            targetMinutes,
+            includeIntro,
+            includeOutro,
+            chaptersEnabled,
+            isPublic,
+            generateVideo,
+            speakers: mode === "DISCUSSION" ? 2 : 1,
+            voices: mode === "DISCUSSION" ? [voiceId, voiceIdB].filter(Boolean) : [voiceId].filter(Boolean),
+            speakerNames: mode === "DISCUSSION" ? {
+              A: voices.find((v) => v.voice_id === voiceId)?.name || undefined,
+              B: voices.find((v) => v.voice_id === voiceIdB)?.name || undefined,
+            } : undefined,
+            coverUrl: generateVideo ? (characterA || undefined) : undefined,
+          }),
+        });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
       setCreatedId(data.id);
@@ -245,6 +247,112 @@ export default function CreateEpisodePage() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Form */}
           <div className="lg:col-span-2 space-y-8">
+            {/* Episode Configuration */}
+            <div className="card">
+              <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-[#00c8c8] to-[#007bff] rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                Episode Settings
+              </h2>
+              
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-[#cccccc] mb-3">Mode</label>
+                  <select 
+                    className="select-field w-full" 
+                    value={mode} 
+                    onChange={(e) => setMode(e.target.value as Mode)}
+                    disabled={generateVideo && mode === "DISCUSSION"}
+                  >
+                    <option value="SUMMARY">Summary</option>
+                    <option value="READTHROUGH">Read-through</option>
+                    <option value="DISCUSSION" disabled={generateVideo}>Discussion</option>
+                  </select>
+                  {generateVideo && mode === "DISCUSSION" && (
+                    <p className="text-xs text-[#ff6b6b] mt-1">Video generation only allows 1 character</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#cccccc] mb-3">Target Minutes</label>
+                  <input
+                    type="number"
+                    className="input-field w-full"
+                    value={targetMinutes}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value || "0", 10);
+                      setTargetMinutes(Math.min(40, Math.max(1, isNaN(n) ? 1 : n)));
+                    }}
+                    min={1}
+                    max={40}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                {/* Generate Video Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-lg border border-[#333333] bg-[#2a2a2a]/50">
+                  <div>
+                    <span className="text-[#cccccc] font-medium">Generate Video</span>
+                    <p className="text-xs text-[#999999] mt-1">Create a lipsync video with your character</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newVideoState = !generateVideo;
+                      setGenerateVideo(newVideoState);
+                      // If enabling video generation and mode is DISCUSSION, change to SUMMARY
+                      if (newVideoState && mode === "DISCUSSION") {
+                        setMode("SUMMARY");
+                      }
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#00c8c8] focus:ring-offset-2 focus:ring-offset-[#1a1a1a] ${
+                      generateVideo ? 'bg-[#00c8c8]' : 'bg-[#666666]'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        generateVideo ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Other Options */}
+                <div className="grid grid-cols-3 gap-4">
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={includeIntro} 
+                      onChange={(e) => setIncludeIntro(e.target.checked)}
+                      className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
+                    />
+                    <span className="text-[#cccccc] font-medium">Intro</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={includeOutro} 
+                      onChange={(e) => setIncludeOutro(e.target.checked)}
+                      className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
+                    />
+                    <span className="text-[#cccccc] font-medium">Outro</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={chaptersEnabled} 
+                      onChange={(e) => setChaptersEnabled(e.target.checked)}
+                      className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
+                    />
+                    <span className="text-[#cccccc] font-medium">Chapters</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
             {/* Source Configuration */}
             <div className="card">
               <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-3">
@@ -425,37 +533,6 @@ export default function CreateEpisodePage() {
               </div>
             </div>
 
-            {/* Characters */}
-            <div className="card">
-              <h2 className="text-2xl font-semibold text-white mb-6">Characters</h2>
-              <div className="grid md:grid-cols-1 gap-8">
-                <div>
-                  <div className="text-[#cccccc] mb-2 font-medium">Character</div>
-                  <div className="space-y-3">
-                    {characterA && (
-                      <img src={characterA} alt="Character A" className="w-full h-40 object-cover rounded" />
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className="btn-secondary" onClick={() => fileInputARef.current?.click()}>Upload Image</button>
-                      <button type="button" className="btn-secondary" onClick={() => setShowGalleryFor("A")}>Select from Gallery</button>
-                      <button type="button" className="btn-primary" onClick={() => setShowPromptFor("A")}>Describe with Prompt</button>
-                      <input ref={fileInputARef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        const fd = new FormData();
-                        fd.append("file", f);
-                        const r = await fetch("/api/uploads", { method: "POST", body: fd, credentials: "include" });
-                        const d = await r.json();
-                        if (!r.ok) { alert(d.error || "Upload failed"); return; }
-                        setCharacterA(d.url);
-                        try { const gr = await fetch("/api/media", { credentials: "include" }); const gd = await gr.json(); if (gd.media) setGallery(gd.media); } catch {}
-                      }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Voice Selection */}
             <div className="card">
               <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-3">
@@ -504,73 +581,6 @@ export default function CreateEpisodePage() {
               </div>
             </div>
 
-            {/* Episode Configuration */}
-            <div className="card">
-              <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-[#00c8c8] to-[#007bff] rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-                Episode Settings
-              </h2>
-              
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-[#cccccc] mb-3">Mode</label>
-                  <select className="select-field w-full" value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
-                    <option value="SUMMARY">Summary</option>
-                    <option value="READTHROUGH">Read-through</option>
-                    <option value="DISCUSSION">Discussion</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#cccccc] mb-3">Target Minutes</label>
-                  <input
-                    type="number"
-                    className="input-field w-full"
-                    value={targetMinutes}
-                    onChange={(e) => {
-                      const n = parseInt(e.target.value || "0", 10);
-                      setTargetMinutes(Math.min(40, Math.max(1, isNaN(n) ? 1 : n)));
-                    }}
-                    min={1}
-                    max={40}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-3 gap-4">
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={includeIntro} 
-                    onChange={(e) => setIncludeIntro(e.target.checked)}
-                    className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
-                  />
-                  <span className="text-[#cccccc] font-medium">Intro</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={includeOutro} 
-                    onChange={(e) => setIncludeOutro(e.target.checked)}
-                    className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
-                  />
-                  <span className="text-[#cccccc] font-medium">Outro</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={chaptersEnabled} 
-                    onChange={(e) => setChaptersEnabled(e.target.checked)}
-                    className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
-                  />
-                  <span className="text-[#cccccc] font-medium">Chapters</span>
-                </label>
-              </div>
-            </div>
-
             {/* Generate Button */}
             <button
               onClick={submit}
@@ -589,6 +599,115 @@ export default function CreateEpisodePage() {
                 "Generate Episode"
               )}
             </button>
+
+            {/* Generation Status */}
+            {createdId && (
+              <div className="card">
+                <h3 className="text-xl font-semibold text-white mb-4">Generation Status</h3>
+                
+                {status !== "PUBLISHED" && status !== "FAILED" && (
+                  <div className="space-y-6">
+                    {(() => {
+                      const { progress, message, step } = getProgressInfo(status);
+                      return (
+                        <>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-[#cccccc]">{message}</span>
+                              <span className="text-sm font-bold text-[#00c8c8]">{progress}%</span>
+                            </div>
+                            <div className="w-full bg-[#2a2a2a] rounded-full h-2 overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-[#00c8c8] to-[#007bff] rounded-full transition-all duration-1000 ease-out"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 bg-[#00c8c8] rounded-full animate-pulse"></div>
+                            <span className="text-sm text-[#999999]">{step}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {status === "FAILED" && (
+                  <div className="text-[#ef4444] bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-lg p-4">
+                    <div className="font-medium">Generation failed</div>
+                    <div className="text-sm mt-1">Please try again or check your input.</div>
+                  </div>
+                )}
+
+                {status === "PUBLISHED" && episode && (
+                  <div className="space-y-4">
+                    {episode.videoUrl ? (
+                      <div className="text-[#66cc66] bg-[#66cc66]/10 border border-[#66cc66]/20 rounded-lg p-4">
+                        <div className="font-medium">Episode Complete!</div>
+                        <div className="text-sm mt-1">Your podcast is ready to listen and watch.</div>
+                      </div>
+                    ) : (
+                      <div className="text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-lg p-4 flex items-center gap-3">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#f59e0b]"></div>
+                        <div>
+                          <div className="font-medium">Audio Complete! Generating video...</div>
+                          <div className="text-sm mt-1">Video is still generating, please be patient. It could take up to 15 minutes to generate.</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-3">
+                      <div className="text-lg font-semibold text-white">{episode.title || "Episode"}</div>
+                      {episode.videoUrl ? (
+                        <video controls className="w-full" preload="metadata" poster={episode.coverUrl || undefined}>
+                          <source src={episode.videoUrl} />
+                        </video>
+                      ) : episode.audioUrl ? (
+                        <audio controls className="w-full">
+                          <source src={episode.audioUrl} type="audio/mpeg" />
+                        </audio>
+                      ) : null}
+                    </div>
+
+                    {/* Save Option */}
+                    {session ? (
+                      <div className="space-y-3">
+                        <button className="btn-secondary w-full py-3">
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Save to My Episodes
+                        </button>
+                        <p className="text-xs text-[#999999] text-center">
+                          This episode will be saved to your account
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-center space-y-3">
+                        <div className="text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-lg p-4">
+                          <div className="font-medium">Create an Account</div>
+                          <div className="text-sm mt-1">To save this podcast, please create an account</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Link href="/register" className="btn-primary flex-1 py-2 text-sm">
+                            Sign Up
+                          </Link>
+                          <Link href="/login" className="btn-secondary flex-1 py-2 text-sm">
+                            Sign In
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="text-xs text-[#666666] mt-4 pt-4 border-t border-[#333333]">
+                  Episode ID: {createdId}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Gallery Modal */}
@@ -748,115 +867,57 @@ export default function CreateEpisodePage() {
             </div>
           )}
 
-          {/* Status Panel */}
-          <div className="lg:col-span-1">
-            {createdId && (
-              <div className="card sticky top-24">
-                <h3 className="text-xl font-semibold text-white mb-4">Generation Status</h3>
-                
-                {status !== "PUBLISHED" && status !== "FAILED" && (
-                  <div className="space-y-6">
-                    {(() => {
-                      const { progress, message, step } = getProgressInfo(status);
-                      return (
-                        <>
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-[#cccccc]">{message}</span>
-                              <span className="text-sm font-bold text-[#00c8c8]">{progress}%</span>
-                            </div>
-                            <div className="w-full bg-[#2a2a2a] rounded-full h-2 overflow-hidden">
-                              <div 
-                                className="h-full bg-gradient-to-r from-[#00c8c8] to-[#007bff] rounded-full transition-all duration-1000 ease-out"
-                                style={{ width: `${progress}%` }}
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 bg-[#00c8c8] rounded-full animate-pulse"></div>
-                            <span className="text-sm text-[#999999]">{step}</span>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {status === "FAILED" && (
-                  <div className="text-[#ef4444] bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-lg p-4">
-                    <div className="font-medium">Generation failed</div>
-                    <div className="text-sm mt-1">Please try again or check your input.</div>
-                  </div>
-                )}
-
-                {status === "PUBLISHED" && episode && (
-                  <div className="space-y-4">
-                    {episode.videoUrl ? (
-                      <div className="text-[#66cc66] bg-[#66cc66]/10 border border-[#66cc66]/20 rounded-lg p-4">
-                        <div className="font-medium">Episode Complete!</div>
-                        <div className="text-sm mt-1">Your podcast is ready to listen and watch.</div>
-                      </div>
-                    ) : (
-                      <div className="text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-lg p-4 flex items-center gap-3">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#f59e0b]"></div>
-                        <div>
-                          <div className="font-medium">Audio Complete! Generating video...</div>
-                          <div className="text-sm mt-1">Video is still generating, please be patient. It could take up to 15 minutes to generate.</div>
-                        </div>
-                      </div>
-                    )}
-                    
+          {/* Right Sidebar */}
+          <div className="lg:col-span-1 space-y-8">
+            {/* Characters */}
+            {generateVideo && (
+              <div className="card">
+                <h2 className="text-2xl font-semibold text-white mb-6">Character</h2>
+                <div className="grid md:grid-cols-1 gap-8">
+                  <div>
+                    <div className="text-[#cccccc] mb-2 font-medium">Character</div>
                     <div className="space-y-3">
-                      <div className="text-lg font-semibold text-white">{episode.title || "Episode"}</div>
-                      {episode.videoUrl ? (
-                        <video controls className="w-full" preload="metadata" poster={episode.coverUrl || undefined}>
-                          <source src={episode.videoUrl} />
-                        </video>
-                      ) : episode.audioUrl ? (
-                        <audio controls className="w-full">
-                          <source src={episode.audioUrl} type="audio/mpeg" />
-                        </audio>
-                      ) : null}
-                    </div>
-
-                    {/* Save Option */}
-                    {session ? (
-                      <div className="space-y-3">
-                        <button className="btn-secondary w-full py-3">
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      {characterA && (
+                        <img src={characterA} alt="Character A" className="w-full h-40 object-cover rounded" />
+                      )}
+                      <div className="flex flex-col gap-2">
+                        <button type="button" className="btn-secondary w-full flex items-center justify-center" onClick={() => fileInputARef.current?.click()}>
+                          <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                           </svg>
-                          Save to My Episodes
+                          Upload Image
                         </button>
-                        <p className="text-xs text-[#999999] text-center">
-                          This episode will be saved to your account
-                        </p>
+                        <button type="button" className="btn-secondary w-full flex items-center justify-center" onClick={() => setShowGalleryFor("A")}>
+                          <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          Select from Gallery
+                        </button>
+                        <button type="button" className="btn-secondary w-full flex items-center justify-center" onClick={() => setShowPromptFor("A")}>
+                          <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Describe with Prompt
+                        </button>
+                        <input ref={fileInputARef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          const fd = new FormData();
+                          fd.append("file", f);
+                          const r = await fetch("/api/uploads", { method: "POST", body: fd, credentials: "include" });
+                          const d = await r.json();
+                          if (!r.ok) { alert(d.error || "Upload failed"); return; }
+                          setCharacterA(d.url);
+                          try { const gr = await fetch("/api/media", { credentials: "include" }); const gd = await gr.json(); if (gd.media) setGallery(gd.media); } catch {}
+                        }} />
                       </div>
-                    ) : (
-                      <div className="text-center space-y-3">
-                        <div className="text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-lg p-4">
-                          <div className="font-medium">Create an Account</div>
-                          <div className="text-sm mt-1">To save this podcast, please create an account</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Link href="/register" className="btn-primary flex-1 py-2 text-sm">
-                            Sign Up
-                          </Link>
-                          <Link href="/login" className="btn-secondary flex-1 py-2 text-sm">
-                            Sign In
-                          </Link>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
-                )}
-
-                <div className="text-xs text-[#666666] mt-4 pt-4 border-t border-[#333333]">
-                  Episode ID: {createdId}
                 </div>
               </div>
             )}
+
+            
           </div>
         </div>
 

@@ -77,6 +77,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
       twoSpeakers: (ep.speakers || 1) > 1,
       speakerNameA: names?.A,
       speakerNameB: names?.B,
+      generateVideo: ep.generateVideo,
     });
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "script_done", message: `Script generated with ${script.chapters?.length ?? 0} chapters` } });
 
@@ -107,60 +108,68 @@ export async function processEpisode(episodeId: string): Promise<void> {
       : await synthesizeSsml(limitedSsml, voiceA as string);
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_done", message: `TTS synthesis done (${ttsBuffer.length} bytes)` } });
 
-         // Extract 30-second parts from script
-     const parts30s = (script as any)?.parts30s || null;
-     if (!parts30s || typeof parts30s !== "object") {
-       throw new Error("Script does not contain 30-second parts");
-     }
-     
-     const partKeys = Object.keys(parts30s).sort((a, b) => Number(a) - Number(b));
-     const expectedParts = Math.max(1, Math.floor((ep.targetMinutes || 1) * 2));
-     const maxAllowedParts = expectedParts + 1; // Allow 1 extra part for tolerance
-     
-     console.log(`[worker:fallback] Found ${partKeys.length} parts, expected ${expectedParts} (max ${maxAllowedParts})`);
-     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "parts_found", message: `Found ${partKeys.length} parts, expected ${expectedParts} (max ${maxAllowedParts})` } });
-     
-     // Validate number of parts
-     if (partKeys.length > maxAllowedParts) {
-       throw new Error(`Script has too many parts: ${partKeys.length} (expected ${expectedParts}, max ${maxAllowedParts}). Target duration: ${ep.targetMinutes} minutes`);
-     }
-     
-     if (partKeys.length < expectedParts) {
-       console.log(`[worker:fallback] Warning: Script has fewer parts than expected: ${partKeys.length} (expected ${expectedParts})`);
-       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "parts_warning", message: `Script has fewer parts than expected: ${partKeys.length} (expected ${expectedParts})` } });
-     }
+    // Check generation mode
+    console.log(`[worker:fallback] Generation mode: ${ep.generateVideo ? 'VIDEO_ONLY' : 'AUDIO_ONLY'}`);
+    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "generation_mode", message: `Mode: ${ep.generateVideo ? 'VIDEO_ONLY' : 'AUDIO_ONLY'}` } });
 
-     // Generate audio for each part
-     await prisma.episode.update({ where: { id: episodeId }, data: { status: "AUDIO_POST" as any } });
-     console.log(`[worker:fallback] Starting audio generation for ${partKeys.length} parts`);
-     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_parts_started", message: `Starting audio generation for ${partKeys.length} parts` } });
+    if (ep.generateVideo) {
+      // VIDEO ONLY MODE - Generate video with 30-second parts
+      console.log(`[worker:fallback] Starting VIDEO ONLY generation`);
+      
+      // Extract 30-second parts from script
+      const parts30s = (script as any)?.parts30s || null;
+      if (!parts30s || typeof parts30s !== "object") {
+        throw new Error("Script does not contain 30-second parts");
+      }
+      
+      const partKeys = Object.keys(parts30s).sort((a, b) => Number(a) - Number(b));
+      const expectedParts = Math.max(1, Math.floor((ep.targetMinutes || 1) * 2));
+      const maxAllowedParts = expectedParts + 1; // Allow 1 extra part for tolerance
+      
+      console.log(`[worker:fallback] Found ${partKeys.length} parts, expected ${expectedParts} (max ${maxAllowedParts})`);
+      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "parts_found", message: `Found ${partKeys.length} parts, expected ${expectedParts} (max ${maxAllowedParts})` } });
+      
+      // Validate number of parts
+      if (partKeys.length > maxAllowedParts) {
+        throw new Error(`Script has too many parts: ${partKeys.length} (expected ${expectedParts}, max ${maxAllowedParts}). Target duration: ${ep.targetMinutes} minutes`);
+      }
+      
+      if (partKeys.length < expectedParts) {
+        console.log(`[worker:fallback] Warning: Script has fewer parts than expected: ${partKeys.length} (expected ${expectedParts})`);
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "parts_warning", message: `Script has fewer parts than expected: ${partKeys.length} (expected ${expectedParts})` } });
+      }
 
-     const videoParts: VideoPart[] = [];
-     const base = env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+      // Generate audio for each part
+      await prisma.episode.update({ where: { id: episodeId }, data: { status: "AUDIO_POST" as any } });
+      console.log(`[worker:fallback] Starting audio generation for ${partKeys.length} parts`);
+      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_parts_started", message: `Starting audio generation for ${partKeys.length} parts` } });
 
-     // Generate audio for each part
-     for (const partKey of partKeys) {
-       const partNumber = parseInt(partKey);
-       const partText = parts30s[partKey];
-       
-       console.log(`[worker:fallback] Generating audio for part ${partNumber}`);
-       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_part_started", message: `Generating audio for part ${partNumber}` } });
+      const videoParts: VideoPart[] = [];
+      const base = env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
-       // Convert part text to SSML
-       const partSsml = `<speak>${partText}</speak>`;
-       
-       // Generate TTS for this part
-       const partTtsBuffer = useTwoVoices
-         ? await synthesizeDialogueAb(partSsml, voiceA as string, voiceB as string, names || (script as any).speaker_names, [])
-         : await synthesizeSsml(partSsml, voiceA as string);
+      // Generate audio for each part
+      for (const partKey of partKeys) {
+        const partNumber = parseInt(partKey);
+        const partText = parts30s[partKey];
+        
+        console.log(`[worker:fallback] Generating audio for part ${partNumber}`);
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_part_started", message: `Generating audio for part ${partNumber}` } });
 
-               // Post-process audio
+        // Convert part text to SSML
+        const partSsml = `<speak>${partText}</speak>`;
+        
+        // Generate TTS for this part
+        const partTtsBuffer = useTwoVoices
+          ? await synthesizeDialogueAb(partSsml, voiceA as string, voiceB as string, names || (script as any).speaker_names, [])
+          : await synthesizeSsml(partSsml, voiceA as string);
+
+        // Post-process audio
         const partMp3 = await wavToMp3Loudnorm(partTtsBuffer, "mp3");
-       if (!partMp3 || partMp3.length < 1024) {
-         throw new Error(`Generated MP3 for part ${partNumber} is too small`);
-       }
+        if (!partMp3 || partMp3.length < 1024) {
+          throw new Error(`Generated MP3 for part ${partNumber} is too small`);
+        }
 
-               // Upload audio part
+        // Upload audio part
         const uploadedPart = await uploadBuffer({ 
           buffer: partMp3, 
           contentType: "audio/mpeg", 
@@ -168,36 +177,36 @@ export async function processEpisode(episodeId: string): Promise<void> {
           prefix: "episodes"
         });
 
-       const audioUrl = uploadedPart.url.startsWith("http") ? uploadedPart.url : `${base}${uploadedPart.url}`;
-       
-       videoParts.push({
-         partNumber,
-         audioUrl,
-         status: 'pending'
-       });
+        const audioUrl = uploadedPart.url.startsWith("http") ? uploadedPart.url : `${base}${uploadedPart.url}`;
+        
+        videoParts.push({
+          partNumber,
+          audioUrl,
+          status: 'pending'
+        });
 
-       console.log(`[worker:fallback] Audio part ${partNumber} uploaded: ${audioUrl}`);
-       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_part_done", message: `Part ${partNumber} audio uploaded: ${audioUrl}` } });
-     }
+        console.log(`[worker:fallback] Audio part ${partNumber} uploaded: ${audioUrl}`);
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_part_done", message: `Part ${partNumber} audio uploaded: ${audioUrl}` } });
+      }
 
-     console.log(`[worker:fallback] All audio parts completed, preparing for video generation`);
-     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_all_done", message: `All ${videoParts.length} audio parts completed` } });
+      console.log(`[worker:fallback] All audio parts completed, preparing for video generation`);
+      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_all_done", message: `All ${videoParts.length} audio parts completed` } });
 
-     console.log(`[worker:fallback] ===== VIDEO GENERATION CHECK START =====`);
-     // Submit all video generation jobs to Wavespeed
-     console.log(`[worker:fallback] Checking video generation conditions:`);
-     console.log(`[worker:fallback] - WAVESPEED_KEY exists: ${!!env.WAVESPEED_KEY}`);
-     console.log(`[worker:fallback] - WAVESPEED_KEY length: ${env.WAVESPEED_KEY?.length || 0}`);
-     console.log(`[worker:fallback] - coverUrl exists: ${!!ep.coverUrl}`);
-     console.log(`[worker:fallback] - ep.coverUrl value: ${ep.coverUrl}`);
-     console.log(`[worker:fallback] - env object keys:`, Object.keys(env).filter(key => key.includes('WAVE')));
-     
-     if (env.WAVESPEED_KEY && (ep.coverUrl || ep?.coverUrl)) {
-       console.log(`[worker:fallback] Video generation conditions met, starting video generation for ${videoParts.length} parts`);
-       await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_generation_started", message: `Starting video generation for ${videoParts.length} parts` } });
+      console.log(`[worker:fallback] ===== VIDEO GENERATION CHECK START =====`);
+      // Submit all video generation jobs to Wavespeed
+      console.log(`[worker:fallback] Checking video generation conditions:`);
+      console.log(`[worker:fallback] - WAVESPEED_KEY exists: ${!!env.WAVESPEED_KEY}`);
+      console.log(`[worker:fallback] - WAVESPEED_KEY length: ${env.WAVESPEED_KEY?.length || 0}`);
+      console.log(`[worker:fallback] - coverUrl exists: ${!!ep.coverUrl}`);
+      console.log(`[worker:fallback] - ep.coverUrl value: ${ep.coverUrl}`);
+      console.log(`[worker:fallback] - env object keys:`, Object.keys(env).filter(key => key.includes('WAVE')));
+      
+      if (env.WAVESPEED_KEY && (ep.coverUrl || ep?.coverUrl)) {
+        console.log(`[worker:fallback] Video generation conditions met, starting video generation for ${videoParts.length} parts`);
+        await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "video_generation_started", message: `Starting video generation for ${videoParts.length} parts` } });
 
-       let imageUrl = ep.coverUrl || "";
-       if (imageUrl && !imageUrl.startsWith("http")) imageUrl = `${base}${imageUrl}`;
+        let imageUrl = ep.coverUrl || "";
+        if (imageUrl && !imageUrl.startsWith("http")) imageUrl = `${base}${imageUrl}`;
 
        // Submit all video jobs
        for (const part of videoParts) {
@@ -548,8 +557,8 @@ export async function processEpisode(episodeId: string): Promise<void> {
        } catch {}
      }
 
-     // Update episode with final data
-     console.log(`[worker:fallback] Updating episode with final data - status: PUBLISHED`);
+     // Update episode with final data (VIDEO ONLY mode)
+     console.log(`[worker:fallback] Updating episode with final data - status: PUBLISHED (VIDEO ONLY)`);
      await prisma.episode.update({
        where: { id: episodeId },
        data: {
@@ -559,13 +568,70 @@ export async function processEpisode(episodeId: string): Promise<void> {
          estimatedWpm: script.estimated_wpm,
          chaptersJson: script.chapters as any,
          showNotesMd: script.show_notes,
-         audioUrl: videoParts[0]?.audioUrl || "", // Use first part as main audio
+         // No audioUrl for video-only mode
          durationSec: totalDurationSec || 60,
        },
      });
 
-     console.log(`[worker:fallback] Episode ${episodeId} completed with ${videoParts.length} parts`);
-     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "publish_done", message: `Episode completed with ${videoParts.length} parts` } });
+     console.log(`[worker:fallback] Episode ${episodeId} completed with ${videoParts.length} video parts`);
+     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "publish_done", message: `Episode completed with ${videoParts.length} video parts` } });
+
+   } else {
+     // AUDIO ONLY MODE - Generate single audio file
+     console.log(`[worker:fallback] Starting AUDIO ONLY generation`);
+     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_only_mode", message: "Starting audio-only generation" } });
+
+     // Post-process the full audio
+     await prisma.episode.update({ where: { id: episodeId }, data: { status: "AUDIO_POST" as any } });
+     console.log(`[worker:fallback] Post-processing full audio`);
+     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_post_started", message: "Post-processing full audio" } });
+
+     const mp3Buffer = await wavToMp3Loudnorm(ttsBuffer, "mp3");
+     if (!mp3Buffer || mp3Buffer.length < 1024) {
+       throw new Error("Generated MP3 is too small");
+     }
+
+     // Upload the full audio
+     const base = env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+     const uploadedAudio = await uploadBuffer({ 
+       buffer: mp3Buffer, 
+       contentType: "audio/mpeg", 
+       ext: ".mp3", 
+       prefix: "episodes"
+     });
+
+     const audioUrl = uploadedAudio.url.startsWith("http") ? uploadedAudio.url : `${base}${uploadedAudio.url}`;
+     console.log(`[worker:fallback] Full audio uploaded: ${audioUrl}`);
+     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "audio_uploaded", message: `Full audio uploaded: ${audioUrl}` } });
+
+     // Calculate duration
+     let durationSec = 60; // default
+     try {
+       const meta = await parseBuffer(mp3Buffer, "audio/mpeg");
+       if (meta.format.duration) {
+         durationSec = Math.round(meta.format.duration);
+       }
+     } catch {}
+
+     // Update episode with final data (AUDIO ONLY mode)
+     console.log(`[worker:fallback] Updating episode with final data - status: PUBLISHED (AUDIO ONLY)`);
+     await prisma.episode.update({
+       where: { id: episodeId },
+       data: {
+         status: "PUBLISHED" as any,
+         title: script.title,
+         ssml: script.ssml,
+         estimatedWpm: script.estimated_wpm,
+         chaptersJson: script.chapters as any,
+         showNotesMd: script.show_notes,
+         audioUrl: audioUrl,
+         durationSec: durationSec,
+       },
+     });
+
+     console.log(`[worker:fallback] Episode ${episodeId} completed with audio only`);
+     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "publish_done", message: "Episode completed with audio only" } });
+   }
   } catch (e: any) {
     // eslint-disable-next-line no-console
     console.error(`[worker:fallback] Failed episode ${episodeId}`, e);

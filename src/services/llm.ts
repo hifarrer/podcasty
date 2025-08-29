@@ -14,6 +14,7 @@ export async function generateScript(raw: string, opts: {
   twoSpeakers?: boolean;
   speakerNameA?: string;
   speakerNameB?: string;
+  generateVideo?: boolean;
 }) {
   const prompt = SCRIPT_WRITER_PROMPT(raw, opts);
   const responseText = await callAnyLLM(prompt);

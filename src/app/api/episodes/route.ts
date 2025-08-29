@@ -26,6 +26,7 @@ const CreateEpisodeSchema = z.object({
   chaptersEnabled: z.boolean().default(true),
   speakerNames: z.object({ A: z.string().optional(), B: z.string().optional() }).optional(),
   isPublic: z.boolean().default(true),
+  generateVideo: z.boolean().default(false),
   // Accept relative or absolute URL for cover image
   coverUrl: z.string().optional(),
   videoImageUrl: z.string().url().optional(),
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
         includeMusic: parsed.includeMusic,
         chaptersEnabled: parsed.chaptersEnabled,
         isPublic: parsed.isPublic,
+        generateVideo: parsed.generateVideo,
         coverUrl: parsed.coverUrl,
       },
     });

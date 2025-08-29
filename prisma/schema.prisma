@@ -142,6 +142,7 @@ model Episode {
   durationSec     Int?
   coverUrl        String?
   videoUrl        String?
+  generateVideo   Boolean       @default(false)
   jobId           String?
   errorMessage    String?
   isPublic        Boolean       @default(true)
