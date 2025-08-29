@@ -53,6 +53,15 @@ export async function processEpisode(episodeId: string): Promise<void> {
       raw = "";
     }
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ingest_done", message: `Input prepared, ${raw.length} chars` } });
+    
+    // Log content type for debugging
+    if (ep.sourceType === "YOUTUBE") {
+      const hasTranscript = raw.includes("transcript") || raw.length > 500;
+      const contentPreview = raw.substring(0, 200) + (raw.length > 200 ? "..." : "");
+      console.log(`[worker:fallback] YouTube content extracted - Length: ${raw.length} chars, Has transcript: ${hasTranscript}`);
+      console.log(`[worker:fallback] Content preview: ${contentPreview}`);
+      await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "content_preview", message: `YouTube content: ${raw.length} chars, preview: ${contentPreview.substring(0, 100)}...` } });
+    }
     if (ep.sourceType !== "PROMPT") {
       if (!raw || raw.length < 20) {
         throw new Error("Ingestion returned insufficient content");
@@ -67,7 +76,9 @@ export async function processEpisode(episodeId: string): Promise<void> {
     await prisma.episode.update({ where: { id: episodeId }, data: { status: "SCRIPTING" as any } });
     // eslint-disable-next-line no-console
     console.log(`[worker:fallback] Generate script`);
-    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "script_started", message: "Script generation started" } });
+    const targetMaxMinutes = (ep as any).generateVideo ? Math.min(3, ep.targetMinutes || 1) : (ep.targetMinutes || 1);
+    console.log(`[worker:fallback] Target duration: ${ep.targetMinutes || 1} minutes, Max allowed: ${targetMaxMinutes} minutes (video: ${(ep as any).generateVideo})`);
+    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "script_started", message: `Script generation started - Target: ${ep.targetMinutes || 1} min, Max: ${targetMaxMinutes} min` } });
     const names = (ep as any).speakerNamesJson as any || null;
     const script = await generateScript(raw, {
       mode: ep.mode as any,

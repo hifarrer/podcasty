@@ -3,9 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Mic, Youtube, Globe, FileText } from "lucide-react";
+import { Mic, Youtube } from "lucide-react";
 
-type SourceType = "YOUTUBE" | "WEB" | "PDF" | "TXT" | "PROMPT";
+type SourceType = "YOUTUBE" | "PROMPT";
 type Mode = "SUMMARY" | "READTHROUGH" | "DISCUSSION";
 type Episode = {
   id: string;
@@ -19,7 +19,6 @@ type Episode = {
 export default function CreateEpisodePage() {
   const [sourceType, setSourceType] = useState<SourceType>("PROMPT");
   const [sourceUrl, setSourceUrl] = useState("");
-  const [uploadKey, setUploadKey] = useState("");
   const [promptText, setPromptText] = useState("");
   const [mode, setMode] = useState<Mode>("SUMMARY");
   const [targetMinutes, setTargetMinutes] = useState(1);
@@ -198,9 +197,8 @@ export default function CreateEpisodePage() {
           credentials: "include",
           body: JSON.stringify({
             sourceType,
-            sourceUrl: (sourceType === "YOUTUBE" || sourceType === "WEB") ? (sourceUrl || undefined) : undefined,
+            sourceUrl: sourceType === "YOUTUBE" ? (sourceUrl || undefined) : undefined,
             promptText: sourceType === "PROMPT" ? promptText : undefined,
-            uploadKey: sourceType === "TXT" ? (uploadKey || undefined) : undefined,
             mode,
             targetMinutes,
             includeIntro,
@@ -406,7 +404,7 @@ export default function CreateEpisodePage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#cccccc] mb-3">Source Type</label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setSourceType("PROMPT")}
@@ -436,40 +434,10 @@ export default function CreateEpisodePage() {
                         YouTube
                       </span>
                     </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => setSourceType("WEB")}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 ${
-                        sourceType === "WEB"
-                          ? "border-[#00c8c8] bg-[#00c8c8]/10"
-                          : "border-[#333333] hover:border-[#00c8c8]/50 hover:bg-[#00c8c8]/5"
-                      }`}
-                    >
-                      <Globe className={`w-6 h-6 ${sourceType === "WEB" ? "text-[#00c8c8]" : "text-[#cccccc]"}`} />
-                      <span className={`text-sm font-medium ${sourceType === "WEB" ? "text-[#00c8c8]" : "text-[#cccccc]"}`}>
-                        Web
-                      </span>
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => setSourceType("TXT")}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 ${
-                        sourceType === "TXT"
-                          ? "border-[#00c8c8] bg-[#00c8c8]/10"
-                          : "border-[#333333] hover:border-[#00c8c8]/50 hover:bg-[#00c8c8]/5"
-                      }`}
-                    >
-                      <FileText className={`w-6 h-6 ${sourceType === "TXT" ? "text-[#00c8c8]" : "text-[#cccccc]"}`} />
-                      <span className={`text-sm font-medium ${sourceType === "TXT" ? "text-[#00c8c8]" : "text-[#cccccc]"}`}>
-                        TXT File
-                      </span>
-                    </button>
                   </div>
                 </div>
 
-                {(sourceType === "YOUTUBE" || sourceType === "WEB") && (
+                {sourceType === "YOUTUBE" && (
                   <div>
                     <label className="block text-sm font-medium text-[#cccccc] mb-3">
                       {sourceType === "YOUTUBE" ? "YouTube URL" : "Web URL"}
@@ -487,51 +455,7 @@ export default function CreateEpisodePage() {
                   </div>
                 )}
 
-                {sourceType === "TXT" && (
-                  <div>
-                    <label className="block text-sm font-medium text-[#cccccc] mb-3">Upload TXT File</label>
-                    <form
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const input = (e.currentTarget.elements.namedItem("file") as HTMLInputElement) || null;
-                        if (!input || !input.files || input.files.length === 0) return;
-                        const fd = new FormData();
-                        fd.append("file", input.files[0]);
-                        const res = await fetch("/api/uploads", { 
-                          method: "POST", 
-                          credentials: "include",
-                          body: fd 
-                        });
-                        const data = await res.json();
-                        if (!res.ok) {
-                          alert(data.error || "Upload failed");
-                          return;
-                        }
-                        setUploadKey(data.key);
-                        alert("TXT uploaded successfully!");
-                      }}
-                      className="flex items-center gap-3"
-                    >
-                      <input 
-                        name="file" 
-                        type="file" 
-                        accept=".txt,text/plain" 
-                        className="block flex-1 text-[#cccccc] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[#00c8c8] file:text-white hover:file:opacity-80 transition-opacity" 
-                      />
-                      <button type="submit" className="btn-primary text-sm px-4 py-2">
-                        Upload
-                      </button>
-                    </form>
-                    {uploadKey && (
-                      <div className="mt-3 text-sm text-[#66cc66] flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        File uploaded successfully
-                      </div>
-                    )}
-                  </div>
-                )}
+
 
                 {sourceType === "PROMPT" && (
                   <div>
