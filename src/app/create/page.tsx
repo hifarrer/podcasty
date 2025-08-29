@@ -190,7 +190,7 @@ export default function CreateEpisodePage() {
     setLoading(true);
     try {
       if (generateVideo && !characterA) {
-        throw new Error("Please add Character 1 image for video generation.");
+        throw new Error("Character is Required to generate a video. Please upload an image, select from gallery, or generate with a prompt.");
       }
               const res = await fetch("/api/episodes", {
           method: "POST",
@@ -648,13 +648,18 @@ export default function CreateEpisodePage() {
                         <div className="font-medium">Episode Complete!</div>
                         <div className="text-sm mt-1">Your podcast is ready to listen and watch.</div>
                       </div>
-                    ) : (
+                    ) : (episode as any).generateVideo ? (
                       <div className="text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-lg p-4 flex items-center gap-3">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#f59e0b]"></div>
                         <div>
                           <div className="font-medium">Audio Complete! Generating video...</div>
                           <div className="text-sm mt-1">Video is still generating, please be patient. It could take up to 15 minutes to generate.</div>
                         </div>
+                      </div>
+                    ) : (
+                      <div className="text-[#66cc66] bg-[#66cc66]/10 border border-[#66cc66]/20 rounded-lg p-4">
+                        <div className="font-medium">Audio Complete!</div>
+                        <div className="text-sm mt-1">Your podcast is ready to listen.</div>
                       </div>
                     )}
                     
@@ -877,8 +882,18 @@ export default function CreateEpisodePage() {
                   <div>
                     <div className="text-[#cccccc] mb-2 font-medium">Character</div>
                     <div className="space-y-3">
-                      {characterA && (
+                      {characterA ? (
                         <img src={characterA} alt="Character A" className="w-full h-40 object-cover rounded" />
+                      ) : (
+                        <div className="w-full h-40 border-2 border-dashed border-[#666666] rounded flex items-center justify-center">
+                          <div className="text-center">
+                            <svg className="w-8 h-8 text-[#666666] mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <p className="text-[#666666] text-sm">Character Required</p>
+                            <p className="text-[#999999] text-xs">Upload, select, or generate an image</p>
+                          </div>
+                        </div>
                       )}
                       <div className="flex flex-col gap-2">
                         <button type="button" className="btn-secondary w-full flex items-center justify-center" onClick={() => fileInputARef.current?.click()}>
