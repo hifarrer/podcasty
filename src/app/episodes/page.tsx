@@ -74,6 +74,7 @@ export default function EpisodesPage() {
   const [debugMap, setDebugMap] = useState<Record<string, { open: boolean; loading: boolean; videos: string[]; audios: string[] }>>({});
   const [retrievingVideos, setRetrievingVideos] = useState<Record<string, boolean>>({});
   const [pollingEpisodes, setPollingEpisodes] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'videos' | 'audios'>('videos');
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -117,6 +118,10 @@ export default function EpisodesPage() {
       setLoading(false);
     }
   };
+
+  const videoEpisodes = episodes.filter(ep => !!ep.videoUrl);
+  const audioEpisodes = episodes.filter(ep => !!ep.audioUrl);
+  const episodesToShow = activeTab === 'videos' ? videoEpisodes : audioEpisodes;
 
   const startPollingEpisode = (episodeId: string) => {
     setPollingEpisodes(prev => new Set(prev).add(episodeId));
@@ -336,14 +341,30 @@ export default function EpisodesPage() {
           </div>
         </div>
 
-        {episodes.length === 0 ? (
+        {/* Tabs */}
+        <div className="mb-8 flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab('videos')}
+            className={`px-4 py-2 rounded-lg border ${activeTab === 'videos' ? 'border-[#00c8c8] text-white' : 'border-[#2a2a2a] text-[#cccccc] hover:border-[#3a3a3a]'}`}
+          >
+            Videos ({videoEpisodes.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('audios')}
+            className={`px-4 py-2 rounded-lg border ${activeTab === 'audios' ? 'border-[#00c8c8] text-white' : 'border-[#2a2a2a] text-[#cccccc] hover:border-[#3a3a3a]'}`}
+          >
+            Audios ({audioEpisodes.length})
+          </button>
+        </div>
+
+        {episodesToShow.length === 0 ? (
           <div className="text-center py-24">
             <div className="w-24 h-24 bg-gradient-to-r from-[#00c8c8] to-[#007bff] rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
             </div>
-            <h2 className="text-2xl font-semibold text-white mb-4">No episodes yet</h2>
+            <h2 className="text-2xl font-semibold text-white mb-4">No {activeTab === 'videos' ? 'videos' : 'audios'} yet</h2>
             <p className="text-[#cccccc] mb-8 max-w-md mx-auto">
               Create your first podcast episode to get started. Transform any content into professional audio with AI-powered voice synthesis.
             </p>
@@ -352,16 +373,16 @@ export default function EpisodesPage() {
             </a>
           </div>
         ) : (
-          <div className="grid gap-6">
-            {episodes.map((ep) => (
-              <div key={ep.id} className="card group hover:border-[#00c8c8] transition-all duration-300">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-semibold text-white group-hover:text-[#00c8c8] transition-colors">
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {episodesToShow.map((ep) => (
+              <div key={ep.id} className="card group hover:border-[#00c8c8] transition-all duration-300 overflow-hidden">
+                <div className="flex items-start justify-between gap-4 mb-4 min-w-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2 min-w-0">
+                      <h3 className="flex-1 min-w-0 truncate text-xl font-semibold text-white group-hover:text-[#00c8c8] transition-colors">
                         {ep.title || "Untitled Episode"}
                       </h3>
-                      <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ep.status)}`}>
+                      <div className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ep.status)}`}>
                         {getStatusIcon(ep.status)}
                         {ep.status}
                         {pollingEpisodes.has(ep.id) && (
@@ -372,7 +393,7 @@ export default function EpisodesPage() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-6 text-sm text-[#999999]">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-[#999999] min-w-0">
                       <div className="flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -394,7 +415,7 @@ export default function EpisodesPage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     {ep.videoUrl && (
                       <a
                         href={ep.videoUrl}
@@ -420,39 +441,23 @@ export default function EpisodesPage() {
                       </a>
                     )}
                     <a 
-                      href={`/episodes/${ep.id}`} 
+                      href={`/share/${ep.id}`} 
                       className="btn-ghost p-2 hover:bg-[#222222] rounded-lg"
-                      title="View Details"
+                      title="Share"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 8a3 3 0 11-2.83 2H9a3 3 0 110-2h3.17A3.001 3.001 0 0115 8zm-6 8a3 3 0 100-6 3 3 0 000 6zm8 3a3 3 0 100-6 3 3 0 000 6z" />
                       </svg>
                     </a>
-                    <button
-                      onClick={() => toggleDebug(ep.id)}
-                      className="btn-ghost p-2 hover:bg-[#222222] rounded-lg"
-                      title="Show generated files"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                      </svg>
-                    </button>
-                    {ep.status === "PUBLISHED" && !ep.videoUrl && ep.audioUrl && (
+                    {activeTab === 'videos' && (
                       <button
-                        onClick={() => retrieveVideoFromWavespeed(ep.id)}
-                        disabled={retrievingVideos[ep.id]}
-                        className="btn-ghost p-2 hover:bg-[#222222] rounded-lg disabled:opacity-50"
-                        title="Retrieve video from Wavespeed (debug)"
+                        onClick={() => toggleDebug(ep.id)}
+                        className="btn-ghost p-2 hover:bg-[#222222] rounded-lg"
+                        title="Show generated files"
                       >
-                        {retrievingVideos[ep.id] ? (
-                          <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        )}
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
                       </button>
                     )}
                   </div>
@@ -537,5 +542,4 @@ export default function EpisodesPage() {
     </div>
   );
 }
-
 

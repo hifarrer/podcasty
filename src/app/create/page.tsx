@@ -336,36 +336,7 @@ export default function CreateEpisodePage() {
                   </button>
                 </div>
 
-                {/* Other Options */}
-                <div className="grid grid-cols-3 gap-4">
-                  <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={includeIntro} 
-                      onChange={(e) => setIncludeIntro(e.target.checked)}
-                      className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
-                    />
-                    <span className="text-[#cccccc] font-medium">Intro</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={includeOutro} 
-                      onChange={(e) => setIncludeOutro(e.target.checked)}
-                      className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
-                    />
-                    <span className="text-[#cccccc] font-medium">Outro</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333333] hover:border-[#00c8c8] transition-colors cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={chaptersEnabled} 
-                      onChange={(e) => setChaptersEnabled(e.target.checked)}
-                      className="w-4 h-4 text-[#00c8c8] bg-[#2a2a2a] border-[#333333] rounded focus:ring-[#00c8c8] focus:ring-2"
-                    />
-                    <span className="text-[#cccccc] font-medium">Chapters</span>
-                  </label>
-                </div>
+
               </div>
             </div>
 
