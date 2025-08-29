@@ -276,18 +276,32 @@ export default function CreateEpisodePage() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#cccccc] mb-3">Target Minutes</label>
-                  <input
-                    type="number"
-                    className="input-field w-full"
-                    value={targetMinutes}
-                    onChange={(e) => {
-                      const n = parseInt(e.target.value || "0", 10);
-                      setTargetMinutes(Math.min(40, Math.max(1, isNaN(n) ? 1 : n)));
-                    }}
-                    min={1}
-                    max={40}
-                  />
+                  <label className="block text-sm font-medium text-[#cccccc] mb-3">
+                    Target Minutes: {targetMinutes} min
+                  </label>
+                  <div className="space-y-2">
+                    <input
+                      type="range"
+                      className="w-full h-2 bg-[#333333] rounded-lg appearance-none cursor-pointer slider"
+                      value={targetMinutes}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value, 10);
+                        setTargetMinutes(value);
+                      }}
+                      min={1}
+                      max={generateVideo ? 3 : 15}
+                      step={1}
+                    />
+                    <div className="flex justify-between text-xs text-[#999999]">
+                      <span>1 min</span>
+                      <span>{generateVideo ? '3 min' : '15 min'}</span>
+                    </div>
+                    {generateVideo && (
+                      <p className="text-xs text-[#f59e0b] mt-1">
+                        ⚠️ Video generation is limited to 3 minutes maximum
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -306,6 +320,10 @@ export default function CreateEpisodePage() {
                       // If enabling video generation and mode is DISCUSSION, change to SUMMARY
                       if (newVideoState && mode === "DISCUSSION") {
                         setMode("SUMMARY");
+                      }
+                      // Adjust target minutes if needed
+                      if (newVideoState && targetMinutes > 3) {
+                        setTargetMinutes(3);
                       }
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#00c8c8] focus:ring-offset-2 focus:ring-offset-[#1a1a1a] ${
