@@ -75,6 +75,7 @@ export default function EpisodesPage() {
   const [retrievingVideos, setRetrievingVideos] = useState<Record<string, boolean>>({});
   const [pollingEpisodes, setPollingEpisodes] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'videos' | 'audios'>('videos');
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; episodeId?: string; title?: string; loading: boolean }>({ open: false, loading: false });
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -122,6 +123,28 @@ export default function EpisodesPage() {
   const videoEpisodes = episodes.filter(ep => !!ep.videoUrl);
   const audioEpisodes = episodes.filter(ep => !!ep.audioUrl);
   const episodesToShow = activeTab === 'videos' ? videoEpisodes : audioEpisodes;
+
+  function openDeleteModal(ep: Episode) {
+    setDeleteModal({ open: true, episodeId: ep.id, title: ep.title || 'Untitled Episode', loading: false });
+  }
+
+  async function confirmDelete() {
+    if (!deleteModal.episodeId) return;
+    setDeleteModal((m) => ({ ...m, loading: true }));
+    try {
+      const res = await fetch(`/api/episodes/${deleteModal.episodeId}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) {
+        setDeleteModal({ open: false, loading: false });
+        await fetchEpisodes();
+      } else {
+        setDeleteModal({ open: false, loading: false });
+        alert('Failed to delete episode.');
+      }
+    } catch {
+      setDeleteModal({ open: false, loading: false });
+      alert('Failed to delete episode.');
+    }
+  }
 
   const startPollingEpisode = (episodeId: string) => {
     setPollingEpisodes(prev => new Set(prev).add(episodeId));
@@ -446,20 +469,18 @@ export default function EpisodesPage() {
                       title="Share"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 8a3 3 0 11-2.83 2H9a3 3 0 110-2h3.17A3.001 3.001 0 0115 8zm-6 8a3 3 0 100-6 3 3 0 000 6zm8 3a3 3 0 100-6 3 3 0 000 6z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v7a1 1 0 001 1h7m8-15l-7 7m0 0V5m0 7h7" />
                       </svg>
                     </a>
-                    {activeTab === 'videos' && (
-                      <button
-                        onClick={() => toggleDebug(ep.id)}
-                        className="btn-ghost p-2 hover:bg-[#222222] rounded-lg"
-                        title="Show generated files"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                        </svg>
-                      </button>
-                    )}
+                    <button
+                      onClick={() => openDeleteModal(ep)}
+                      className="btn-ghost p-2 hover:bg-[#222222] rounded-lg"
+                      title="Delete"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a2 2 0 012-2h6a2 2 0 012 2v1a1 1 0 01-1 1H8z" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
                 
@@ -539,6 +560,31 @@ export default function EpisodesPage() {
           </div>
         )}
       </div>
+
+      {deleteModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md bg-[#1f1f1f] border border-[#333] rounded-lg p-6">
+            <h3 className="text-xl font-semibold text-white mb-2">Delete episode?</h3>
+            <p className="text-[#cccccc] mb-6">“{deleteModal.title}” will be permanently deleted.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                className="btn-secondary"
+                onClick={() => setDeleteModal({ open: false, loading: false })}
+                disabled={deleteModal.loading}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary bg-[#ef4444] hover:bg-[#dc2626]"
+                onClick={confirmDelete}
+                disabled={deleteModal.loading}
+              >
+                {deleteModal.loading ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
