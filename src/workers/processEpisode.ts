@@ -77,8 +77,23 @@ export async function processEpisode(episodeId: string): Promise<void> {
       twoSpeakers: (ep.speakers || 1) > 1,
       speakerNameA: names?.A,
       speakerNameB: names?.B,
-      generateVideo: ep.generateVideo,
+      generateVideo: (ep as any).generateVideo,
     });
+    
+    // Validate script duration
+    const estimatedWpm = script.estimated_wpm || 150;
+    const scriptText = script.ssml.replace(/<[^>]*>/g, ''); // Remove SSML tags
+    const wordCount = scriptText.split(/\s+/).length;
+    const estimatedDurationMinutes = wordCount / estimatedWpm;
+    const maxAllowedMinutes = (ep as any).generateVideo ? Math.min(3, ep.targetMinutes || 1) : (ep.targetMinutes || 1);
+    
+    console.log(`[worker:fallback] Script validation - Words: ${wordCount}, WPM: ${estimatedWpm}, Estimated duration: ${estimatedDurationMinutes.toFixed(2)} minutes, Max allowed: ${maxAllowedMinutes} minutes`);
+    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "script_validation", message: `Script validation - Words: ${wordCount}, WPM: ${estimatedWpm}, Estimated duration: ${estimatedDurationMinutes.toFixed(2)} minutes, Max allowed: ${maxAllowedMinutes} minutes` } });
+    
+    if (estimatedDurationMinutes > maxAllowedMinutes * 1.1) { // Allow 10% tolerance
+      throw new Error(`Generated script is too long: ${estimatedDurationMinutes.toFixed(2)} minutes (max allowed: ${maxAllowedMinutes} minutes). The AI must summarize the content to fit within the target duration.`);
+    }
+    
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "script_done", message: `Script generated with ${script.chapters?.length ?? 0} chapters` } });
 
     // TTS (single or dialogue)
@@ -109,10 +124,10 @@ export async function processEpisode(episodeId: string): Promise<void> {
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "tts_done", message: `TTS synthesis done (${ttsBuffer.length} bytes)` } });
 
     // Check generation mode
-    console.log(`[worker:fallback] Generation mode: ${ep.generateVideo ? 'VIDEO_ONLY' : 'AUDIO_ONLY'}`);
-    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "generation_mode", message: `Mode: ${ep.generateVideo ? 'VIDEO_ONLY' : 'AUDIO_ONLY'}` } });
+    console.log(`[worker:fallback] Generation mode: ${(ep as any).generateVideo ? 'VIDEO_ONLY' : 'AUDIO_ONLY'}`);
+    await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "generation_mode", message: `Mode: ${(ep as any).generateVideo ? 'VIDEO_ONLY' : 'AUDIO_ONLY'}` } });
 
-    if (ep.generateVideo) {
+    if ((ep as any).generateVideo) {
       // VIDEO ONLY MODE - Generate video with 30-second parts
       console.log(`[worker:fallback] Starting VIDEO ONLY generation`);
       
