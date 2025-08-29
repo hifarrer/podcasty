@@ -410,18 +410,15 @@ export async function processEpisode(episodeId: string): Promise<void> {
           console.log(`[worker:fallback] Starting FFMPEG merge for ${completedVideos.length} videos`);
           await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "ffmpeg_merge_started", message: `Starting FFMPEG merge for ${completedVideos.length} videos` } });
 
-          try {
-            const videoUrls = completedVideos.map(p => p.videoUrl!);
-            const audioUrl = videoParts[0]?.audioUrl; // Use first part's audio as reference
-            
-            console.log(`[worker:fallback] FFMPEG request - Video URLs:`, videoUrls);
-            console.log(`[worker:fallback] FFMPEG request - Audio URL:`, audioUrl);
+                     try {
+             const videoUrls = completedVideos.map(p => p.videoUrl!);
+             
+             console.log(`[worker:fallback] FFMPEG request - Video URLs:`, videoUrls);
 
-            const ffmpegRequestBody = {
-              video_urls: videoUrls,
-              audio_url: audioUrl,
-              async: true
-            };
+             const ffmpegRequestBody = {
+               video_urls: videoUrls,
+               async: true
+             };
             
             console.log(`[worker:fallback] FFMPEG request body:`, JSON.stringify(ffmpegRequestBody, null, 2));
 
