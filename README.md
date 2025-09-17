@@ -2,6 +2,64 @@
 
 Turn links and files into polished podcast episodes with scripting, TTS, and post‑processing.
 
+## How Podcast Creation Works
+
+Podcasty transforms various content sources into professional podcast episodes through a multi-stage AI-powered pipeline:
+
+### 1. Content Ingestion
+- **YouTube Videos**: Extracts transcripts, titles, and descriptions using `youtube-transcript-api` and `ytdl-core`
+- **Web Pages**: Uses Mozilla's Readability library to extract clean article content
+- **PDF Files**: Processes uploaded PDFs to extract text content
+- **Text Prompts**: Direct text input for custom content creation
+
+### 2. AI Script Generation
+- **Primary LLM**: OpenAI GPT-4o-mini (fallback: Anthropic Claude-3.5-Sonnet)
+- **Script Modes**: 
+  - **Summary**: Condensed overview of source material
+  - **Readthrough**: Full content presentation
+  - **Discussion**: Two-speaker dialogue format with opposing viewpoints
+- **Output**: Structured SSML (Speech Synthesis Markup Language) with chapters, show notes, and speaker turns
+
+### 3. Text-to-Speech Synthesis
+- **Service**: ElevenLabs API
+- **Models**: 
+  - `eleven_multilingual_v2` (primary)
+  - `eleven_turbo_v2` (fallback for short content)
+- **Features**: 
+  - Single narrator or dual-speaker dialogue
+  - Custom voice selection
+  - SSML support for natural pacing and breaks
+
+### 4. Audio Post-Processing
+- **FFmpeg**: Audio normalization and format conversion
+- **Loudness Normalization**: Ensures consistent audio levels
+- **Format**: MP3 output at 44.1kHz/160kbps
+
+### 5. Video Generation (Optional)
+- **Service**: Wavespeed AI
+- **Process**: 
+  - Splits audio into 30-second segments
+  - Generates talking head videos using provided character images
+  - Combines segments into final video
+- **Features**: Lip-sync technology with custom character prompts
+
+### 6. Content Delivery
+- **Storage**: S3-compatible storage (AWS S3, Cloudflare R2, etc.)
+- **Streaming**: Byte-range support for efficient audio/video playback
+- **RSS Feeds**: Automatic podcast feed generation
+- **Sharing**: Public episode sharing with custom URLs
+
+## AI Models & Services Used
+
+| Service | Purpose | Models/Features |
+|---------|---------|-----------------|
+| **OpenAI** | Script generation | GPT-4o-mini (primary) |
+| **Anthropic** | Script generation | Claude-3.5-Sonnet (fallback) |
+| **ElevenLabs** | Text-to-speech | eleven_multilingual_v2, eleven_turbo_v2 |
+| **Wavespeed AI** | Video generation | Multitalk lip-sync technology |
+| **Mozilla Readability** | Web content extraction | Article parsing and cleaning |
+| **YouTube APIs** | Video content extraction | Transcript and metadata extraction |
+
 ## Overview
 - Web app (Next.js 14) deployed on Vercel
 - Background worker (Node) deployed on Render

@@ -14,7 +14,7 @@ export const SCRIPT_WRITER_PROMPT = (
 - Output SSML suitable for TTS.
 - Tone/style: ${opts.style}; Language: ${opts.language}.
 - Mode: ${opts.mode}.
-- CRITICAL DURATION CONSTRAINT: The final script MUST NOT exceed ${opts.targetMinutes || 1} minutes when spoken at ~150 words per minute. If the source content is longer (e.g., a 1-hour YouTube video or long web article), you MUST summarize and condense it to fit within this time limit. Focus on the most important points and key takeaways. For video generation, this is a hard maximum of ${opts.generateVideo ? Math.min(3, opts.targetMinutes || 1) : opts.targetMinutes || 1} minutes.
+- CRITICAL DURATION CONSTRAINT: The final script should aim for ${opts.targetMinutes || 1} minutes when spoken at ~150 words per minute, but can be up to 30% longer if needed for quality content. If the source content is longer (e.g., a 1-hour YouTube video or long web article), you MUST summarize and condense it to fit within this time limit. Focus on the most important points and key takeaways. For video generation, this is a hard maximum of ${opts.generateVideo ? Math.min(3, opts.targetMinutes || 1) : opts.targetMinutes || 1} minutes.
 - Structure:
   <intro hook>, <context>, <sectioned narrative with transitions>, <clear chapter headings>, <outro>.
 - Use <break time="xxxms"/> for pacing; avoid overlong sentences.

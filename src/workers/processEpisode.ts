@@ -101,7 +101,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
     console.log(`[worker:fallback] Script validation - Words: ${wordCount}, WPM: ${estimatedWpm}, Estimated duration: ${estimatedDurationMinutes.toFixed(2)} minutes, Max allowed: ${maxAllowedMinutes} minutes`);
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "script_validation", message: `Script validation - Words: ${wordCount}, WPM: ${estimatedWpm}, Estimated duration: ${estimatedDurationMinutes.toFixed(2)} minutes, Max allowed: ${maxAllowedMinutes} minutes` } });
     
-    if (estimatedDurationMinutes > maxAllowedMinutes * 1.1) { // Allow 10% tolerance
+    if (estimatedDurationMinutes > maxAllowedMinutes * 1.3) { // Allow 30% tolerance
       throw new Error(`Generated script is too long: ${estimatedDurationMinutes.toFixed(2)} minutes (max allowed: ${maxAllowedMinutes} minutes). The AI must summarize the content to fit within the target duration.`);
     }
     
