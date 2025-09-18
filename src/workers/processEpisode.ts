@@ -76,7 +76,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
     await prisma.episode.update({ where: { id: episodeId }, data: { status: "SCRIPTING" as any } });
     // eslint-disable-next-line no-console
     console.log(`[worker:fallback] Generate script`);
-    const targetMaxMinutes = (ep as any).generateVideo ? Math.min(3, ep.targetMinutes || 1) : (ep.targetMinutes || 1);
+    const targetMaxMinutes = ep.targetMinutes || 1;
     console.log(`[worker:fallback] Target duration: ${ep.targetMinutes || 1} minutes, Max allowed: ${targetMaxMinutes} minutes (video: ${(ep as any).generateVideo})`);
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "script_started", message: `Script generation started - Target: ${ep.targetMinutes || 1} min, Max: ${targetMaxMinutes} min` } });
     const names = (ep as any).speakerNamesJson as any || null;
@@ -96,7 +96,7 @@ export async function processEpisode(episodeId: string): Promise<void> {
     const scriptText = script.ssml.replace(/<[^>]*>/g, ''); // Remove SSML tags
     const wordCount = scriptText.split(/\s+/).length;
     const estimatedDurationMinutes = wordCount / estimatedWpm;
-    const maxAllowedMinutes = (ep as any).generateVideo ? Math.min(3, ep.targetMinutes || 1) : (ep.targetMinutes || 1);
+    const maxAllowedMinutes = ep.targetMinutes || 1;
     
     console.log(`[worker:fallback] Script validation - Words: ${wordCount}, WPM: ${estimatedWpm}, Estimated duration: ${estimatedDurationMinutes.toFixed(2)} minutes, Max allowed: ${maxAllowedMinutes} minutes`);
     await prisma.eventLog.create({ data: { episodeId, userId: ep.userId, type: "script_validation", message: `Script validation - Words: ${wordCount}, WPM: ${estimatedWpm}, Estimated duration: ${estimatedDurationMinutes.toFixed(2)} minutes, Max allowed: ${maxAllowedMinutes} minutes` } });

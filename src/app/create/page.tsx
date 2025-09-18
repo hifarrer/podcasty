@@ -287,16 +287,16 @@ export default function CreateEpisodePage() {
                         setTargetMinutes(value);
                       }}
                       min={1}
-                      max={generateVideo ? 3 : 15}
+                      max={generateVideo ? 10 : 15}
                       step={1}
                     />
                     <div className="flex justify-between text-xs text-[#999999]">
                       <span>1 min</span>
-                      <span>{generateVideo ? '3 min' : '15 min'}</span>
+                      <span>{generateVideo ? '10 min' : '15 min'}</span>
                     </div>
                     {generateVideo && (
                       <p className="text-xs text-[#f59e0b] mt-1">
-                        ⚠️ Video generation is limited to 3 minutes maximum
+                        ⚠️ Video generation may take longer for extended durations
                       </p>
                     )}
                   </div>
@@ -319,10 +319,7 @@ export default function CreateEpisodePage() {
                       if (newVideoState && mode === "DISCUSSION") {
                         setMode("SUMMARY");
                       }
-                      // Adjust target minutes if needed
-                      if (newVideoState && targetMinutes > 3) {
-                        setTargetMinutes(3);
-                      }
+                      // Note: Removed artificial 3-minute limit for video generation
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#00c8c8] focus:ring-offset-2 focus:ring-offset-[#1a1a1a] ${
                       generateVideo ? 'bg-[#00c8c8]' : 'bg-[#666666]'
