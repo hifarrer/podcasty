@@ -56,8 +56,9 @@ export async function GET() {
 
   const users = await prisma.user.count();
   const episodes = await prisma.episode.count();
+  const videoEpisodes = await prisma.episode.count({ where: { generateVideo: true } });
 
-  return NextResponse.json({ months, categories: buckets, totals: { users, episodes } });
+  return NextResponse.json({ months, categories: buckets, totals: { users, episodes, videoEpisodes } });
 }
 
 

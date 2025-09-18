@@ -36,14 +36,16 @@ export default function AdminHome() {
           <h1 className="text-3xl font-bold gradient-text">Admin Dashboard</h1>
           <div className="flex gap-3">
             <Link className="btn-secondary" href="/admin/users">Users</Link>
+            <Link className="btn-secondary" href="/admin/video-episodes">Video Episodes</Link>
             <Link className="btn-secondary" href="/admin/plans">Plans</Link>
             <Link className="btn-secondary" href="/admin/settings">Settings</Link>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-4 gap-6">
           <div className="card"><div className="text-[#cccccc]">Users</div><div className="text-3xl text-white font-bold">{totals.users ?? 0}</div></div>
           <div className="card"><div className="text-[#cccccc]">Episodes</div><div className="text-3xl text-white font-bold">{totals.episodes ?? 0}</div></div>
+          <div className="card"><div className="text-[#cccccc]">Video Episodes</div><div className="text-3xl text-white font-bold">{totals.videoEpisodes ?? 0}</div></div>
           <div className="card"><div className="text-[#cccccc]">Categories</div><div className="text-3xl text-white font-bold">{Object.keys(categories).length}</div></div>
         </div>
 
