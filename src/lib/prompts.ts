@@ -1,3 +1,5 @@
+import { getLanguageName } from "./language-detection";
+
 export const SCRIPT_WRITER_PROMPT = (
   raw: string,
   opts: {
@@ -10,9 +12,12 @@ export const SCRIPT_WRITER_PROMPT = (
     speakerNameB?: string;
     generateVideo?: boolean;
   }
-) => `You are a podcast scriptwriter. Transform the provided content into a structured podcast script.
+) => {
+  const languageName = getLanguageName(opts.language as any) || opts.language;
+  return `You are a podcast scriptwriter. Transform the provided content into a structured podcast script.
 - Output SSML suitable for TTS.
-- Tone/style: ${opts.style}; Language: ${opts.language}.
+- Tone/style: ${opts.style}; Target Language: ${languageName} (${opts.language}).
+- CRITICAL: You MUST generate the ENTIRE script (title, SSML content, chapters, show notes, and all text) in ${languageName}. If the source content is in a different language, translate it to ${languageName}. If the source is already in ${languageName}, keep it in ${languageName}. All output text must be in ${languageName}.
 - Mode: ${opts.mode}.
 - CRITICAL DURATION CONSTRAINT: The final script should aim for ${opts.targetMinutes || 1} minutes when spoken at ~150 words per minute, but can be up to 30% longer if needed for quality content. If the source content is longer (e.g., a 1-hour YouTube video or long web article), you MUST summarize and condense it to fit within this time limit. Focus on the most important points and key takeaways. For video generation, this is a hard maximum of ${opts.generateVideo ? Math.min(3, opts.targetMinutes || 1) : opts.targetMinutes || 1} minutes.
 - Structure:
@@ -33,6 +38,7 @@ Return JSON ONLY in the following shape (ensure turns are labeled strictly with 
 Keep brand names and quotes minimal; paraphrase vs. verbatim.
 
 CONTENT START\n${raw}\nCONTENT END`;
+};
 
 export const SHOW_NOTES_POLISHER = `Improve clarity and SEO for the show notes. Add 5–10 keywords. Return markdown only.`;
 

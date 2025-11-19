@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Mic, Youtube } from "lucide-react";
+import { detectLanguage, SUPPORTED_LANGUAGES, type LanguageCode, getLanguageName } from "@/lib/language-detection";
 
 type SourceType = "YOUTUBE" | "PROMPT";
 type Mode = "SUMMARY" | "READTHROUGH" | "DISCUSSION";
@@ -20,6 +21,7 @@ export default function CreateEpisodePage() {
   const [sourceType, setSourceType] = useState<SourceType>("PROMPT");
   const [sourceUrl, setSourceUrl] = useState("");
   const [promptText, setPromptText] = useState("");
+  const [language, setLanguage] = useState<LanguageCode>("en");
   const [mode, setMode] = useState<Mode>("SUMMARY");
   const [targetMinutes, setTargetMinutes] = useState(1);
   const [includeIntro, setIncludeIntro] = useState(true);
@@ -200,6 +202,7 @@ export default function CreateEpisodePage() {
             sourceUrl: sourceType === "YOUTUBE" ? (sourceUrl || undefined) : undefined,
             promptText: sourceType === "PROMPT" ? promptText : undefined,
             mode,
+            language,
             targetMinutes,
             includeIntro,
             includeOutro,
@@ -429,18 +432,66 @@ export default function CreateEpisodePage() {
 
 
                 {sourceType === "PROMPT" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-[#cccccc] mb-3">Text Prompt</label>
+                      <textarea
+                        className="input-field w-full h-32 resize-none"
+                        placeholder="A Podcast about Clean Energy"
+                        value={promptText}
+                         onChange={(e) => {
+                           const v = e.target.value;
+                           if (v.length <= 35000) {
+                             setPromptText(v);
+                             // Auto-detect language when user types
+                             if (v.length > 10) {
+                               const detected = detectLanguage(v);
+                               setLanguage(detected);
+                             }
+                           }
+                         }}
+                      />
+                      <div className="text-xs text-[#999999] mt-1">{promptText.length}/35000</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#cccccc] mb-3">
+                        Language
+                        {promptText.length > 10 && (
+                          <span className="text-xs text-[#00c8c8] ml-2">
+                            (Auto-detected: {getLanguageName(language)})
+                          </span>
+                        )}
+                      </label>
+                      <select 
+                        className="select-field w-full" 
+                        value={language} 
+                        onChange={(e) => setLanguage(e.target.value as LanguageCode)}
+                      >
+                        {SUPPORTED_LANGUAGES.map((lang) => (
+                          <option key={lang.code} value={lang.code}>{lang.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-[#999999] mt-1">
+                        The podcast will be generated in the selected language. Language is auto-detected from your prompt.
+                      </p>
+                    </div>
+                  </>
+                )}
+                {sourceType === "YOUTUBE" && (
                   <div>
-                    <label className="block text-sm font-medium text-[#cccccc] mb-3">Text Prompt</label>
-                    <textarea
-                      className="input-field w-full h-32 resize-none"
-                      placeholder="A Podcast about Clean Energy"
-                      value={promptText}
-                       onChange={(e) => {
-                         const v = e.target.value;
-                         if (v.length <= 35000) setPromptText(v);
-                       }}
-                    />
-                    <div className="text-xs text-[#999999] mt-1">{promptText.length}/35000</div>
+                    <label className="block text-sm font-medium text-[#cccccc] mb-3">Language</label>
+                    <select 
+                      className="select-field w-full" 
+                      value={language} 
+                      onChange={(e) => setLanguage(e.target.value as LanguageCode)}
+                    >
+                      {SUPPORTED_LANGUAGES.map((lang) => (
+                        <option key={lang.code} value={lang.code}>{lang.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-[#999999] mt-1">
+                      The podcast will be generated in the selected language. Content will be translated if needed.
+                    </p>
                   </div>
                 )}
               </div>
